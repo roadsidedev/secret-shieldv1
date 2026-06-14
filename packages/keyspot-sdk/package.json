@@ -1,6 +1,6 @@
 {
   "name": "@roadsidelab/keyspot-sdk",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Runtime security layer for autonomous AI agents — single SDK package",
   "type": "module",
   "main": "./dist/index.js",
