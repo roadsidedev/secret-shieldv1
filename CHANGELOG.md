@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.3 (2026-06-14)
+
+### New
+- ASCII banner on CLI start — "KEYSPOT" rendered in Matrix green (`#00ff41`) via figlet font `Banner3`, wrapped in a boxen border
+- Colour-coded `log` object with 7 methods: `scanning` (amber), `detected` (red), `vaulted` (green), `clean` (matrix green), `info` (white), `muted` (grey), `error` (red, stderr)
+- All CLI output now uses coloured prefixes with distinct symbols (`⬡`, `✗`, `✓`, `●`, `›`)
+- Scan summary includes elapsed time in milliseconds
+
+### Packaging
+- Added `figlet`, `chalk`, `boxen` as runtime dependencies of `@roadsidelab/keyspot-cli`
+
 ## 2.0.2 (2026-06-09)
 
 ### New

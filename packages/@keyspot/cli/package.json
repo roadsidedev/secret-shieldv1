@@ -1,6 +1,6 @@
 {
   "name": "@roadsidelab/keyspot-cli",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "KeySpot SDK CLI — scan files, install pre-commit hooks, and integrate with CI",
   "type": "module",
   "main": "./dist/index.js",
@@ -8,7 +8,9 @@
   "bin": {
     "keyspot": "./dist/index.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist",
@@ -16,9 +18,13 @@
   },
   "dependencies": {
     "@roadsidelab/keyspot-core": "workspace:*",
-    "@roadsidelab/keyspot-patterns": "workspace:*"
+    "@roadsidelab/keyspot-patterns": "workspace:*",
+    "boxen": "^8.0.1",
+    "chalk": "^5.6.2",
+    "figlet": "^1.11.0"
   },
   "devDependencies": {
+    "@types/figlet": "^1.7.0",
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0"
   },
@@ -28,7 +34,12 @@
     "url": "https://github.com/roadsidedev/keyspot-sdk",
     "directory": "packages/@keyspot/cli"
   },
-  "keywords": ["keyspot", "cli", "secret-scanner", "pre-commit"],
+  "keywords": [
+    "keyspot",
+    "cli",
+    "secret-scanner",
+    "pre-commit"
+  ],
   "publishConfig": {
     "access": "public",
     "provenance": true
