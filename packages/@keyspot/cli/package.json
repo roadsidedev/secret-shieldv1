@@ -1,6 +1,6 @@
 {
   "name": "@roadsidelab/keyspot-cli",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "KeySpot SDK CLI — scan files, install pre-commit hooks, and integrate with CI",
   "type": "module",
   "main": "./dist/index.js",
@@ -20,11 +20,9 @@
     "@roadsidelab/keyspot-core": "workspace:*",
     "@roadsidelab/keyspot-patterns": "workspace:*",
     "boxen": "^8.0.1",
-    "chalk": "^5.6.2",
-    "figlet": "^1.11.0"
+    "chalk": "^5.6.2"
   },
   "devDependencies": {
-    "@types/figlet": "^1.7.0",
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0"
   },
@@ -41,8 +39,7 @@
     "pre-commit"
   ],
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   },
   "engines": {
     "node": ">=18.0.0"
