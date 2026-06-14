@@ -1,8 +1,12 @@
 #!/usr/bin/env node
 import { readFileSync, readdirSync, writeFileSync, existsSync } from 'fs';
 import { join, resolve } from 'path';
+import { performance } from 'node:perf_hooks';
+import { setTimeout } from 'node:timers/promises';
 import { KeySpot } from '@roadsidelab/keyspot-core';
 import { builtInPatterns } from '@roadsidelab/keyspot-patterns';
+import { showBanner } from './banner.js';
+import { log } from './logger.js';
 
 interface ScanOptions {
   path: string;
@@ -12,6 +16,7 @@ interface ScanOptions {
 }
 
 async function scanFiles(options: ScanOptions): Promise<void> {
+  const start = performance.now();
   const guard = new KeySpot({ patterns: builtInPatterns });
 
   function walkDir(dir: string): string[] {
@@ -32,6 +37,7 @@ async function scanFiles(options: ScanOptions): Promise<void> {
 
   const files = walkDir(options.path);
   let totalMatches = 0;
+  let prunedCount = 0;
 
   for (const file of files) {
     try {
@@ -42,11 +48,11 @@ async function scanFiles(options: ScanOptions): Promise<void> {
         if (options.format === 'json') {
           console.log(JSON.stringify({ file, matches }));
         } else {
-          console.log(`\n${file}:`);
+          log.scanning(`Scanning ${file}`);
           for (const m of matches) {
             const action = options.prune ? '[PRUNED]' : '[FOUND]';
-            console.log(`  ${action} ${m.type} (${m.severity}) at ${m.path || 'root'}`);
-            console.log(`    ${m.redacted}`);
+            log.detected(`${m.type} ${action} (${m.severity}) at ${m.path || 'root'}`);
+            log.muted(m.redacted);
           }
           if (options.prune) {
             let pruned = content;
@@ -55,6 +61,7 @@ async function scanFiles(options: ScanOptions): Promise<void> {
                 pruned = pruned.replaceAll(m.rawValue, m.redacted);
               }
             }
+            prunedCount += matches.length;
             writeFileSync(file, pruned, 'utf-8');
           }
         }
@@ -64,8 +71,14 @@ async function scanFiles(options: ScanOptions): Promise<void> {
     }
   }
 
+  const elapsed = Math.round(performance.now() - start);
+
   if (options.format !== 'json') {
-    console.log(`\nScan complete. ${totalMatches} secret(s) found across ${files.length} file(s).`);
+    if (totalMatches === 0) {
+      log.clean(`State sanitised · 0 secrets · ${elapsed}ms`);
+    } else {
+      log.clean(`State sanitised · ${prunedCount || totalMatches} secret(s) pruned · ${elapsed}ms`);
+    }
   }
 
   if (totalMatches > 0 && !options.prune) {
@@ -76,7 +89,7 @@ async function scanFiles(options: ScanOptions): Promise<void> {
 function installHook(): void {
   const hookDir = join(process.cwd(), '.git', 'hooks');
   if (!existsSync(hookDir)) {
-    console.error('Not a git repository: no .git/hooks directory found');
+    log.error('Not a git repository: no .git/hooks directory found');
     process.exit(1);
   }
 
@@ -87,26 +100,27 @@ exec npx @roadsidelab/keyspot-sdk/cli scan --git
 `;
 
   writeFileSync(hookPath, hookContent, 'utf-8');
-  console.log(`Installed pre-commit hook at ${hookPath}`);
+  log.info(`Installed pre-commit hook at ${hookPath}`);
 }
 
 async function printHelp(): Promise<void> {
-  console.log(`KeySpot SDK v2.0.2 — Runtime security for AI agents
-
-USAGE
-  keyspot scan <path>     Scan files for secrets
-  keyspot install         Install pre-commit hook
-  keyspot --version       Show version
-
-OPTIONS
-  --git        Scan only files changed in the last commit (for pre-commit)
-  --prune      Auto-redact found secrets in-place
-  --json       Output in JSON format
-  --help       Show this help
-`);
+  log.info('KeySpot SDK v2.0.3 — Runtime security for AI agents');
+  log.muted('USAGE');
+  log.muted('  keyspot scan <path>     Scan files for secrets');
+  log.muted('  keyspot install         Install pre-commit hook');
+  log.muted('  keyspot --version       Show version');
+  log.muted('');
+  log.muted('OPTIONS');
+  log.muted('  --git        Scan only files changed in the last commit (for pre-commit)');
+  log.muted('  --prune      Auto-redact found secrets in-place');
+  log.muted('  --json       Output in JSON format');
+  log.muted('  --help       Show this help');
 }
 
 export async function main(): Promise<void> {
+  showBanner();
+  await setTimeout(800);
+
   const args = process.argv.slice(2);
 
   if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
@@ -115,7 +129,7 @@ export async function main(): Promise<void> {
   }
 
   if (args.includes('--version') || args.includes('-v')) {
-    console.log('2.0.2');
+    log.info('2.0.2');
     return;
   }
 
@@ -149,27 +163,27 @@ export async function main(): Promise<void> {
         const matches = await guard.scan(content);
         if (matches.length > 0) {
           totalMatches += matches.length;
-          console.log(`\n${file}:`);
+          log.scanning(file);
           for (const m of matches) {
-            console.log(`  [BLOCKED] ${m.type} (${m.severity})`);
-            console.log(`    ${m.redacted}`);
+            log.error(`[BLOCKED] ${m.type} (${m.severity})`);
+            log.muted(m.redacted);
           }
         }
       } catch { /* skip unreadable */ }
     }
 
     if (totalMatches > 0) {
-      console.log(`\n${totalMatches} secret(s) found in staged changes. Commit blocked.`);
+      log.clean(`State blocked · ${totalMatches} secret(s) found in staged changes`);
       process.exit(1);
     }
     return;
   }
 
-  console.error('Unknown command. Use --help for usage.');
+  log.error('Unknown command. Use --help for usage.');
   process.exit(1);
 }
 
 main().catch(err => {
-  console.error('Fatal:', err);
+  log.error(`Fatal: ${err}`);
   process.exit(1);
 });
