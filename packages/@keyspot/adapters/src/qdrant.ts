@@ -1,4 +1,4 @@
-import { BaseVectorStoreAdapter } from './base.js';
+import { BaseVectorStoreAdapter } from './arbitrum.js';
 import type { QdrantClient } from '@qdrant/js-client-rest';
 
 export class QdrantAdapter extends BaseVectorStoreAdapter {

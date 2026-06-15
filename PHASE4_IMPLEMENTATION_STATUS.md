@@ -94,7 +94,7 @@ POST /api/v1/migration/import
   passport: {
     agentId: "0x8004...",
     walletAddress: "0x...",
-    agentRegistry: "eip155:8453:0x...",
+    agentRegistry: "eip155:42161:0x...",
     configSnapshot: { ... },
     vaultMapping: [...],
     checkpoints: [...],
@@ -187,7 +187,7 @@ pnpm start
 # Human Users (API Key + Subscription)
 # POST /auth/register → Create user + free subscription
 # POST /auth/login → Authenticate + get tokens
-# POST /api/keys → Create API key (tier-based limits)
+# POST /api/keys → Create API key (tier-arbitrumd limits)
 
 # Agents (x402 Payments)
 # GET /x402/verify?payment-signature=... → 402 with payment request
@@ -213,7 +213,7 @@ DATABASE_URL=postgresql://prod-db:5432/keyspot
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 PAY_TO_ADDRESS=0x...
-BASE_RPC_URL=https://mainnet.base.org
+BASE_RPC_URL=https://arb1.arbitrum.io/rpc
 X402_IDENTITY_REGISTRY=0x...
 X402_PRICE_CHECKPOINT=0.0001
 X402_PRICE_SCAN=0.00005

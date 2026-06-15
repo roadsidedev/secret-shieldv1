@@ -24,7 +24,7 @@ const checkpointSchema = z.object({
 export interface KeySpotSaaSConfig extends KeySpotServerConfig {
   facilitator?: X402Facilitator;
   identityRegistry: string;
-  x402Network?: 'base' | 'base-sepolia';
+  x402Network?: 'arbitrum' | 'arbitrum-sepolia';
   x402PayTo?: string;
   x402USDCAddress?: string;
   x402FreeQuota?: number;
@@ -38,7 +38,7 @@ export function createSaaSApp(config: KeySpotSaaSConfig = {}): Express {
   const enableX402 = config.enableX402 ?? true;
   const facilitator = config.facilitator;
   const identityRegistry = config.identityRegistry;
-  const x402Network = config.x402Network || 'base';
+  const x402Network = config.x402Network || 'arbitrum';
   const x402PayTo = config.x402PayTo || '';
   const x402USDCAddress = config.x402USDCAddress;
   const x402FreeQuota = config.x402FreeQuota ?? 0;

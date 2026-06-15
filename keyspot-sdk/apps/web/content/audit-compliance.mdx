@@ -55,8 +55,8 @@ logger.logSigned({ type: 'checkpoint', stateSummary: 'object' });
 const result = logger.verifyAgainstFile();
 // { valid: true, entries: 142, errors: [] }
 
-// Anchor the chain root to Base blockchain
-await logger.anchorToBase();
+// Anchor the chain root to Arbitrum One blockchain
+await logger.anchorToArbitrum();
 
 logger.close();
 ```

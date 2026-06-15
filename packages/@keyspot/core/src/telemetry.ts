@@ -114,7 +114,7 @@ export class OtelTracer implements Tracer {
       };
     }
 
-    // Fallback: performance-based span
+    // Fallback: performance-arbitrumd span
     return {
       end: () => {
         const duration = performance.now() - start;

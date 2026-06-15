@@ -33,7 +33,7 @@ The KeySpot SDK v2.0 dual-mode architecture has been **fully implemented** with:
 │   ├── services/               # Stripe, metrics, apiKey
 │   └── payments/               # x402 facilitator
 │   ├── utils/                   # Crypto, Redis, Prisma
-│   └── prisma/                 # Database schema
+│   └── prisma/                 # Dataarbitrum schema
 ```
 
 #### Hosted SaaS (`@keyspot/server-saas`)
@@ -56,7 +56,7 @@ The KeySpot SDK v2.0 dual-mode architecture has been **fully implemented** with:
 #### 1. x402 Payment Protocol v2 ✅
 - **Headers:** `PAYMENT-REQUIRED`, `PAYMENT-SIGNATURE`
 - **Scheme:** EIP-3009 (exact payment)
-- **Network:** Base L2 (mainnet or sepolia)
+- **Network:** Arbitrum One L2 (mainnet or sepolia)
 - **Asset:** USDC contract
 - **Implementation:** Complete viem integration with ERC-8004
 
@@ -69,11 +69,11 @@ The KeySpot SDK v2.0 dual-mode architecture has been **fully implemented** with:
 #### 3. Hybrid Authentication ✅
 **Persistent Mode (registered agents):**
 - ERC-8004 token identity
-- Database lookup for agent metadata
+- Dataarbitrum lookup for agent metadata
 - Wallet verification
 
 **Stateless Mode (x402 payments):**
-- Header-based verification
+- Header-arbitrumd verification
 - Payment signature validation
 - Temporary access tokens
 
@@ -104,7 +104,7 @@ POST /api/v1/migration/import
 - **X402 Middleware:** Payment verification
 - **Request Logger:** Comprehensive logging
 - **Error Handling:** Centralized error boundaries
-- **Rate Limiting:** Tier-based limits
+- **Rate Limiting:** Tier-arbitrumd limits
 
 #### 7. Rate Limiting ✅
 **Configurable via environment:**
@@ -119,7 +119,7 @@ X402_FREE_QUOTA=1000       # 1000 free calls/month
 - **PRO tier:** 10,000 calls/month, 1,000/min rate limit
 - **ENTERPRISE tier:** 100,000 calls/month, 10,000/min rate limit
 
-#### 8. Database Schema ✅
+#### 8. Dataarbitrum Schema ✅
 ```sql
 -- Users & API Keys
 CREATE TABLE User (...);
@@ -175,7 +175,7 @@ DATABASE_URL=postgresql://prod-db:5432/keyspot
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 PAY_TO_ADDRESS=0x...
-BASE_RPC_URL=https://mainnet.base.org
+BASE_RPC_URL=https://arb1.arbitrum.io/rpc
 X402_IDENTITY_REGISTRY=0x...
 X402_PRICE_CHECKPOINT=0.0001
 X402_FREE_QUOTA=0
@@ -197,7 +197,7 @@ pnpm start
 | `JWT_SECRET` | JWT signing key | ✅ | `your-secret` |
 | `STRIPE_SECRET_KEY` | Stripe API key | ✅ (hosted) | `sk_live_...` |
 | `PAY_TO_ADDRESS` | USDC payment recipient | ✅ (hosted) | `0x...` |
-| `BASE_RPC_URL` | Base RPC endpoint | ✅ (hosted) | `https://...` |
+| `BASE_RPC_URL` | Arbitrum One RPC endpoint | ✅ (hosted) | `https://...` |
 | `X402_IDENTITY_REGISTRY` | ERC-8004 registry | ✅ (hosted) | `0x...` |
 
 ### Mode-Specific Configuration

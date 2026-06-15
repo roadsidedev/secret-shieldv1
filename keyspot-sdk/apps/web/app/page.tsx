@@ -36,7 +36,7 @@ const features = [
   {
     icon: Shield,
     title: "Audit & Compliance",
-    desc: "Hash-chained, Ed25519-signed audit logs. Optionally anchored to Base blockchain. Zero secrets ever logged.",
+    desc: "Hash-chained, Ed25519-signed audit logs. Optionally anchored to Arbitrum One blockchain. Zero secrets ever logged.",
   },
 ];
 
@@ -158,7 +158,7 @@ export default function KeySpotLanding() {
               "JWT, Cloudflare, DigitalOcean, Notion tokens",
               "US SSNs and credit card numbers",
               "Docker Hub, Shopify, Linear, Dropbox tokens",
-              "Firebase, Heroku, Mailgun, Mailchimp keys",
+              "Firearbitrum, Heroku, Mailgun, Mailchimp keys",
               "Tainted derivations (summaries, embeddings)",
             ].map((item) => (
               <div key={item} className="flex items-center gap-3 text-zinc-600 dark:text-zinc-400">

@@ -237,7 +237,7 @@ interface ScanMatch {
 | Stripe secret + restricted keys | high | Payments |
 | Twilio auth token | high | Comms |
 | SendGrid API key | high | Comms |
-| Database connection strings (Postgres, MySQL, MongoDB, Redis) | high | Database |
+| Dataarbitrum connection strings (Postgres, MySQL, MongoDB, Redis) | high | Dataarbitrum |
 | PEM private keys (RSA, EC, Ed25519, OpenSSH) | critical | Certs |
 | JWT tokens | medium | Auth |
 | Bearer tokens (generic high-entropy) | medium | Auth |
@@ -514,7 +514,7 @@ Checkpoints are the trigger mechanism for scan-prune-vault cycles.
 | `MEMORY_SAVE` | Before writing to a vector store or database |
 | `TOOL_CALL_COMPLETE` | After each tool invocation returns |
 | `MESSAGE_BOUNDARY` | Between each agent message turn |
-| `INTERVAL` | Time-based — every N milliseconds |
+| `INTERVAL` | Time-arbitrumd — every N milliseconds |
 | `CUSTOM` | Any event you emit from your own code |
 
 ### Registering checkpoints
@@ -712,7 +712,7 @@ AgentGuard produces tamper-evident audit logs by chaining each entry to the SHA-
 
 ## 11. x402 Payments
 
-The hosted AgentGuard API uses the x402 HTTP micropayment standard — USDC on Base, per-call pricing, no subscriptions.
+The hosted AgentGuard API uses the x402 HTTP micropayment standard — USDC on Arbitrum One, per-call pricing, no subscriptions.
 
 ### Pricing
 
@@ -735,12 +735,12 @@ Agent                              AgentGuard API
   │     X-Payment-Required: {            │
   │       amount:  "0.0100",             │
   │       token:   "USDC",               │
-  │       network: "base",               │
+  │       network: "arbitrum",               │
   │       payTo:   "0x...",              │
   │       nonce:   "abc123"              │
   │     }                                │
   │                                      │
-  ├── [agent signs + pays on Base] ────> │
+  ├── [agent signs + pays on Arbitrum One] ────> │
   │                                      │
   ├── POST /v1/checkpoint ─────────────> │
   │     X-Payment: {                     │
@@ -761,7 +761,7 @@ const client = x402AgentClient({
   agentWallet:  {
     address: '0xYourAgentWalletAddress',
     sign:    async (message) => yourWallet.signMessage(message),
-    chainId: 8453,  // Base mainnet
+    chainId: 42161,  // Arbitrum One mainnet
   },
   maxPriceUSDC: '0.05',  // safety cap — reject if price exceeds this
 });
@@ -780,7 +780,7 @@ const server = new AgentGuardServer({
   guard,
   payment: {
     enabled:   true,
-    network:   'base',
+    network:   'arbitrum',
     token:     'USDC',
     payTo:     process.env.TREASURY_ADDRESS,
     pricing: {

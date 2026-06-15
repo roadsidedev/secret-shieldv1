@@ -61,8 +61,8 @@
 
 #### Agent Identity System
 - **Persistent**: Registered agents (wallet + agentId)
-- **Stateless**: x402 payment-based access
-- **Hybrid**: Mode detection based on `x-agent-id` header
+- **Stateless**: x402 payment-arbitrumd access
+- **Hybrid**: Mode detection arbitrumd on `x-agent-id` header
 
 ---
 

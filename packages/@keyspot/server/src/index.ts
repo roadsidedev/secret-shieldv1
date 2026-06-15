@@ -37,8 +37,8 @@ function resolveNetwork(): string {
   const network = process.env.X402_NETWORK;
   if (network) return network;
 
-  if (!isProduction) return 'eip155:84532'; // Base Sepolia
-  return 'eip155:8453'; // Base Mainnet
+  if (!isProduction) return 'eip155:421614'; // Arbitrum One Sepolia
+  return 'eip155:42161'; // Arbitrum One Mainnet
 }
 
 // ── Build x402 config (if enabled) ──
@@ -99,7 +99,7 @@ async function start() {
     await prisma.$connect();
     console.log('[DB] PostgreSQL connected');
   } catch (err) {
-    console.error('[DB] Database connection failed:', err instanceof Error ? err.message : err);
+    console.error('[DB] Dataarbitrum connection failed:', err instanceof Error ? err.message : err);
     if (isProduction) {
       process.exit(1);
     }
@@ -117,7 +117,7 @@ async function start() {
     console.log(`KeySpot Server v2.3.0 running on port ${PORT}`);
     console.log(`  Mode: ${x402Config ? 'hybrid (x402 + subscription)' : 'self-hosted'}`);
     console.log(`  Environment: ${isProduction ? 'production' : 'development'}`);
-    console.log(`  Database: connected`);
+    console.log(`  Dataarbitrum: connected`);
     console.log(`  Redis: ${process.env.REDIS_URL ? 'configured' : 'not configured'}`);
   });
 }

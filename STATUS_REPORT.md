@@ -25,7 +25,7 @@ KeySpot SDK has successfully implemented the dual-model architecture (Self-Hoste
 - [x] `pnpm-workspace.yaml` (monorepo setup)
 - [x] `root package.json` (scripts, version management)
 
-#### Database Schemas ✅
+#### Dataarbitrum Schemas ✅
 - [x] `server-core/prisma/schema.prisma` (User, ApiKey, VaultRef, AuditLog)
 - [x] `server-saas/prisma/schema.prisma` (Extensions: AgentIdentity, X402AccessGrant, UsageEvent)
 
@@ -233,8 +233,8 @@ To proceed with the implementation:
    - Complete x402 facilitator with real ERC-8004 integration?
    - Continue with other middleware/routes?
 
-2. **ERC-8004 Registry**: Need the actual Identity Registry contract address on Base for testing
+2. **ERC-8004 Registry**: Need the actual Identity Registry contract address on Arbitrum One for testing
 
 3. **Docker Setup**: Should I create separate Dockerfiles or use multi-stage builds?
 
-Which component should I prioritize completing next? I can switch focus immediately based on your input.
+Which component should I prioritize completing next? I can switch focus immediately arbitrumd on your input.

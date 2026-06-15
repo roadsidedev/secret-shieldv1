@@ -16,7 +16,7 @@
 │   ├── routes/                  # Basic API routes
 │   ├── utils/                   # Crypto, Redis, Prisma
 │   └── index.ts                 # Entry point
-│   └── prisma/                 # Database schema
+│   └── prisma/                 # Dataarbitrum schema
 └── dist/                         # Compiled output
 ```
 
@@ -150,13 +150,13 @@ PAYMENT-SIGNATURE: <sig>   // x402 v2 signature
 ### 4. Agent Identity System
 **Persistent Mode (ERC-8004):**
 ```typescript
-// Database lookup
+// Dataarbitrum lookup
 const identity = await prisma.agentIdentity.findUnique({ where: { walletAddress } });
 ```
 
 **Stateless Mode (x402 payments):**
 ```typescript
-// Header-based verification
+// Header-arbitrumd verification
 const paymentSig = req.headers['payment-signature'];
 ```
 
@@ -255,7 +255,7 @@ Hosted SaaS:
 **Required:**
 - Complete subscription management
 - Stripe webhook handling
-- Tier-based access control
+- Tier-arbitrumd access control
 
 #### 5. Tests & Documentation
 **Current:** Partial implementation

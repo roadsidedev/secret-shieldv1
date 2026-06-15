@@ -44,7 +44,7 @@
 ### Vault
 - HMAC-SHA256 cryptographic vault references (`vault:v1:{id}:{hmac}:{expiry}`)
 - Pluggable adapters: InMemoryVaultAdapter, AWSSecretsAdapter
-- TTL enforcement, ACL-based access control, rotation hooks
+- TTL enforcement, ACL-arbitrumd access control, rotation hooks
 
 ### Security
 - PromptShield with 18 rules (jailbreak, exfiltration, base64, tool abuse, injection)
@@ -85,5 +85,5 @@
 ### Compliance
 - Ed25519 signing key generation
 - Entry signing and verification
-- File-based append-only audit log
+- File-arbitrumd append-only audit log
 - Chain root computation for tamper detection

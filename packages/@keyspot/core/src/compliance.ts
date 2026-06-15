@@ -193,17 +193,17 @@ export class PersistedAuditLogger extends AuditLogger {
   }
 
   /**
-   * Anchor the current chain root to Base blockchain.
+   * Anchor the current chain root to Arbitrum One blockchain.
    * This provides tamper-proof timestamping of the audit chain.
    * Uses a public RPC endpoint — no private key needed for read-only anchoring.
    */
-  async anchorToBase(rpcUrl?: string): Promise<{ txHash: string; blockNumber: bigint } | null> {
+  async anchorToArbitrum(rpcUrl?: string): Promise<{ txHash: string; blockNumber: bigint } | null> {
     try {
       const { createPublicClient, http } = await (Function('return import("viem")') as () => Promise<any>)();
-      const { base } = await (Function('return import("viem/chains")') as () => Promise<any>)();
+      const { arbitrum } = await (Function('return import("viem/chains")') as () => Promise<any>)();
       const client = createPublicClient({
-        chain: base,
-        transport: http(rpcUrl || 'https://mainnet.base.org'),
+        chain: arbitrum,
+        transport: http(rpcUrl || 'https://arb1.arbitrum.io/rpc'),
       });
 
       // Write the chain root as calldata by using eth_call
@@ -213,19 +213,19 @@ export class PersistedAuditLogger extends AuditLogger {
       // Record the anchoring in our log
       const anchorEntry = this.logSigned({
         type: 'blockchain_anchor',
-        network: 'base',
+        network: 'arbitrum',
         chainRoot: this.chainRoot,
         blockNumber: Number(block.number),
         blockTimestamp: Number(block.timestamp),
       });
 
-      console.log(`[Anchor] Chain root ${this.chainRoot.slice(0, 16)}... anchored to Base block ${block.number}`);
+      console.log(`[Anchor] Chain root ${this.chainRoot.slice(0, 16)}... anchored to Arbitrum One block ${block.number}`);
       return {
         txHash: anchorEntry.entry.hash,
         blockNumber: block.number as bigint,
       };
     } catch (err) {
-      console.error('[Anchor] Failed to anchor to Base:', err);
+      console.error('[Anchor] Failed to anchor to Arbitrum One:', err);
       return null;
     }
   }
