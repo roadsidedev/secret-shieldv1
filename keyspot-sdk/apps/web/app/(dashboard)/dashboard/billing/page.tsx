@@ -23,7 +23,7 @@ const plans = [
   {
     id: 'PRO',
     name: 'Pro',
-    price: '$29',
+    price: '$20',
     period: '/month',
     features: ['25 API keys', '1M requests/month', '10K secrets vaulted', 'Email support', '99.9% uptime SLA'],
     cta: 'Upgrade to Pro',
