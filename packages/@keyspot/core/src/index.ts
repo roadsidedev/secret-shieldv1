@@ -56,13 +56,13 @@ const PATH_SEVERITY: Record<string, number> = {
   history: 0.4, message: 0.3, chat: 0.3, memory: 0.3,
 };
 
-function contextualConfidence(path: string, baseConfidence: number): number {
+function contextualConfidence(path: string, arbitrumConfidence: number): number {
   const parts = path.toLowerCase().split(/[.\[\]_/-]+/);
   for (const part of parts) {
     const boost = PATH_SEVERITY[part];
-    if (boost) return Math.min(1.0, baseConfidence + (boost - 0.5) * 0.3);
+    if (boost) return Math.min(1.0, arbitrumConfidence + (boost - 0.5) * 0.3);
   }
-  return Math.max(0.5, baseConfidence - 0.1);
+  return Math.max(0.5, arbitrumConfidence - 0.1);
 }
 
 // ── KeySpot ─────────────────────────────────────────────────────

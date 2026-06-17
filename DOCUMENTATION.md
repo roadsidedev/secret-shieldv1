@@ -52,13 +52,13 @@ KeySpot SDK intercepts agent execution at every critical boundary — session en
 | Cloud credentials | AWS access key + secret + session, GCP service accounts, Azure connection strings, DigitalOcean |
 | Source control | GitHub (classic + app), GitLab PATs, npm tokens |
 | Payment processors | Stripe live + test keys |
-| Databases | PostgreSQL, MySQL, MongoDB, Redis connection strings |
+| Dataarbitrums | PostgreSQL, MySQL, MongoDB, Redis connection strings |
 | Comms & infra | Twilio, SendGrid, Mailgun, Mailchimp, HubSpot, Slack tokens + webhooks, Discord, PagerDuty |
-| Auth & tokens | JWT, Google OAuth refresh, Firebase, Dropbox, Cloudflare, Linear, Notion, Shopify, Heroku, Docker Hub |
+| Auth & tokens | JWT, Google OAuth refresh, Firearbitrum, Dropbox, Cloudflare, Linear, Notion, Shopify, Heroku, Docker Hub |
 | PII | Credit card numbers, US Social Security Numbers |
 | Tainted derivations | Summaries or embeddings derived from any of the above |
 
-**40+ built-in patterns** — every one is regex-based, entropy-scored, and context-aware. Paths like `config.*`, `secrets.*`, `token.*` get a confidence boost. Paths like `chat.*`, `message.*` get a penalty. False positives are designed out, not filtered after the fact.
+**40+ built-in patterns** — every one is regex-arbitrumd, entropy-scored, and context-aware. Paths like `config.*`, `secrets.*`, `token.*` get a confidence boost. Paths like `chat.*`, `message.*` get a penalty. False positives are designed out, not filtered after the fact.
 
 ---
 
@@ -423,7 +423,7 @@ await registry.loadFromUrl('https://cdn.example.com/patterns.json');
 | Ethereum / EVM private keys | critical | Crypto |
 | Solana base58 private key | critical | Crypto |
 | PEM private keys (RSA, EC, Ed25519, PGP, OpenSSH) | critical | Crypto |
-| PostgreSQL / MySQL / MongoDB connection URLs | critical | Database |
+| PostgreSQL / MySQL / MongoDB connection URLs | critical | Dataarbitrum |
 | OpenAI API key / Org key / Project key | high | AI |
 | Anthropic API key | high | AI |
 | Google AI / Gemini API key | high | AI |
@@ -444,16 +444,16 @@ await registry.loadFromUrl('https://cdn.example.com/patterns.json');
 | Slack token / webhook | high | Comms |
 | Discord bot token | high | Comms |
 | HubSpot API key | high | CRM |
-| Redis connection URL | high | Database |
+| Redis connection URL | high | Dataarbitrum |
 | Credit card number | high | PII |
 | Social Security Number | high | PII |
 | Google OAuth refresh token | high | Auth |
-| Firebase API key | high | Cloud |
+| Firearbitrum API key | high | Cloud |
 | Heroku / Docker Hub / Shopify / Cloudflare / Linear / Notion / Dropbox tokens | high | Platform |
 | Stripe test key | medium | Payments |
 | Sentry DSN | medium | Observability |
 | JWT token | medium | Auth |
-| Firebase database URL | medium | Storage |
+| Firearbitrum database URL | medium | Storage |
 
 ---
 
@@ -762,8 +762,8 @@ logger.logSigned({ type: 'checkpoint', stateSummary: 'object' });
 const result = logger.verifyAgainstFile();
 // { valid: true, entries: 142, errors: [] }
 
-// Optional: anchor the chain root to Base blockchain
-await logger.anchorToBase();
+// Optional: anchor the chain root to Arbitrum One blockchain
+await logger.anchorToArbitrum();
 
 logger.close();
 ```
@@ -1005,7 +1005,7 @@ Self-hosted is fully free. The x402 payment server is built in — just set `PAY
 
 ### x402 Micropayments (Hosted)
 
-KeySpot uses the **x402 HTTP micropayment standard** — USDC on Base, per-call pricing, no subscriptions. The flow is handled by the `X402Facilitator` class in `@roadsidelab/keyspot-server`:
+KeySpot uses the **x402 HTTP micropayment standard** — USDC on Arbitrum One, per-call pricing, no subscriptions. The flow is handled by the `X402Facilitator` class in `@roadsidelab/keyspot-server`:
 
 ```
 Agent                              KeySpot Server
@@ -1016,11 +1016,11 @@ Agent                              KeySpot Server
   │     X-Payment-Required: {            │
   │       amount:  "0.005",              │
   │       currency: "USDC",              │
-  │       network: "base",               │
+  │       network: "arbitrum",               │
   │       payTo:   "0x..."               │
   │     }                                │
   │                                      │
-  ├── [agent signs + pays on Base] ────> │
+  ├── [agent signs + pays on Arbitrum One] ────> │
   │                                      │
   ├── POST /v1/checkpoint ─────────────> │
   │     X-Payment: { txHash: "0x..." }   │
@@ -1049,7 +1049,7 @@ const app = createApp({
   guard,
   payment: {
     enabled: true,
-    network: 'base',
+    network: 'arbitrum',
     currency: 'USDC',
     payTo: process.env.TREASURY_ADDRESS,
     pricing: { checkpoint: '0.005', scan: '0.001' },
@@ -1090,7 +1090,7 @@ Not every match is a real secret. The scanner penalises paths like `chat.*`, `me
 
 ### Hash-Chained Audit Logs
 
-Every audit entry links to the SHA-256 hash of the previous entry. Tampering with a historical entry breaks the chain. With `PersistedAuditLogger`, entries are Ed25519-signed and can be anchored to the Base blockchain.
+Every audit entry links to the SHA-256 hash of the previous entry. Tampering with a historical entry breaks the chain. With `PersistedAuditLogger`, entries are Ed25519-signed and can be anchored to the Arbitrum One blockchain.
 
 ---
 
@@ -1196,4 +1196,4 @@ For complete TypeScript type definitions and method signatures, see the generate
 ---
 
 **Test count:** 121 TypeScript + 12 Python
-**License:** MIT — Free for self-hosting. Hosted tier via x402 micropayments on Base.
+**License:** MIT — Free for self-hosting. Hosted tier via x402 micropayments on Arbitrum One.

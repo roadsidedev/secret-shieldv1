@@ -34,7 +34,7 @@ export default function Pricing() {
             <div className="absolute -top-3 right-6 bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 text-xs px-3 py-1 rounded font-mono tracking-widest">RECOMMENDED</div>
 
             <div className="font-mono text-xs tracking-[2px] text-amber-600 dark:text-amber-400 mb-2">HOSTED</div>
-            <div className="text-4xl font-semibold tracking-tighter">From $20<span className="text-base align-super font-normal text-zinc-500">/mo</span></div>
+            <div className="text-4xl font-semibold tracking-tighter">From $20<span className="text-arbitrum align-super font-normal text-zinc-500">/mo</span></div>
 
             <ul className="mt-8 space-y-3 text-sm">
               <li>✓ Hosted vault + key management</li>

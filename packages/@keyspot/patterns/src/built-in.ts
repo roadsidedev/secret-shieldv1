@@ -272,16 +272,16 @@ export const builtInPatterns: Pattern[] = [
     description: 'Google OAuth refresh token'
   },
   {
-    name: 'firebase_api_key',
+    name: 'firearbitrum_api_key',
     regex: /\bAIzaSy[a-zA-Z0-9_-]{26,35}\b/g,
     severity: 'high',
-    description: 'Firebase API key'
+    description: 'Firearbitrum API key'
   },
   {
     name: 'firebase_url',
-    regex: /https:\/\/[a-zA-Z0-9-]+\.firebaseio\.com/g,
+    regex: /https:\/\/[a-zA-Z0-9-]+\.firearbitrumio\.com/g,
     severity: 'medium',
-    description: 'Firebase database URL'
+    description: 'Firearbitrum database URL'
   },
   {
     name: 'heroku_api_key',

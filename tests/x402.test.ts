@@ -11,7 +11,7 @@ describe('x402 Payment Protocol (official)', () => {
     });
 
     it('has mainnet CDP URL', () => {
-      expect(DEFAULT_FACILITATOR_URLS.mainnet.cdp).toBe('https://api.cdp.coinbase.com/platform/v2/x402');
+      expect(DEFAULT_FACILITATOR_URLS.mainnet.cdp).toBe('https://api.cdp.coinarbitrum.com/platform/v2/x402');
     });
 
     it('has mainnet PayAI URL', () => {
@@ -27,14 +27,14 @@ describe('x402 Payment Protocol (official)', () => {
     it('creates middleware with testnet facilitator', () => {
       const { middleware, facilitatorClient } = createX402Middleware({
         facilitatorUrl: DEFAULT_FACILITATOR_URLS.testnet,
-        network: 'eip155:84532',
+        network: 'eip155:421614',
         payTo: '0x1234567890AbcdEF1234567890aBcdef12345678',
         routes: {
           'POST /checkpoint': {
             accepts: [{
               scheme: 'exact',
               price: '$0.0001',
-              network: 'eip155:84532',
+              network: 'eip155:421614',
               payTo: '0x1234567890AbcdEF1234567890aBcdef12345678',
             }],
             description: 'Checkpoint endpoint',
@@ -49,14 +49,14 @@ describe('x402 Payment Protocol (official)', () => {
     it('creates middleware with mainnet CDP facilitator', () => {
       const { middleware, facilitatorClient } = createX402Middleware({
         facilitatorUrl: DEFAULT_FACILITATOR_URLS.mainnet.cdp,
-        network: 'eip155:8453',
+        network: 'eip155:42161',
         payTo: '0x1234567890AbcdEF1234567890aBcdef12345678',
         routes: {
           'POST /checkpoint': {
             accepts: [{
               scheme: 'exact',
               price: '$0.0001',
-              network: 'eip155:8453',
+              network: 'eip155:42161',
               payTo: '0x1234567890AbcdEF1234567890aBcdef12345678',
             }],
           },

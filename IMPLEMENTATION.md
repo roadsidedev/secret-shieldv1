@@ -24,7 +24,7 @@
 │   ├── utils/                   # Crypto, Redis, Prisma
 │   ├── services/               # Optional integrations
 │   └── index.ts                 # Entry point
-│   └── prisma/                 # Database schema
+│   └── prisma/                 # Dataarbitrum schema
 └── dist/                         # Compiled output
 ```
 
@@ -64,7 +64,7 @@
 - ✅ **Stripe subscriptions** (tier management)
 - ✅ **Agent identity system** (persistent x-agent-id)
 - ✅ **Migration endpoints** (passport import/export)
-- ✅ **Usage tracking** (agent-based metrics)
+- ✅ **Usage tracking** (agent-arbitrumd metrics)
 
 ### 🛡️ Authentication Flow
 | Mode | User Type | Auth Method | Features |
@@ -79,7 +79,7 @@
 #### Protocol
 - **Version**: x402 v2 (exact scheme)
 - **Scheme**: EIP-3009 (transferWithAuthorization)
-- **Chain**: Base mainnet or Sepolia
+- **Chain**: Arbitrum One mainnet or Sepolia
 - **Asset**: USDC contract
 - **Header**: `PAYMENT-SIGNATURE` (base64 encoded PaymentPayload)
 
@@ -99,7 +99,7 @@
 **Persistent Mode** (registered agents):
 ```typescript
 // Header: x-agent-id: <agentId>
-// Database lookup
+// Dataarbitrum lookup
 // Return cached agent identity
 ```
 
@@ -110,7 +110,7 @@
 // Create temporary access token
 ```
 
-### 📊 Database Schema
+### 📊 Dataarbitrum Schema
 
 #### Core Tables
 - `User` - User accounts
@@ -181,7 +181,7 @@ DATABASE_URL=postgresql://...
 ### Rate Limiting by Type
 ```typescript
 // Human users (API key) - higher limits
-// Agents (persistent) - tier-based limits
+// Agents (persistent) - tier-arbitrumd limits
 // Agents (stateless) - guest/quota limits
 ```
 
@@ -278,9 +278,9 @@ DATABASE_URL=postgresql://...
 
 ### Phase 2: Features & Testing (2-3 days)
 4. **Rate Limiting**
-   - Agent-based limits (persistent vs stateless)
+   - Agent-arbitrumd limits (persistent vs stateless)
    - Free quota management
-   - Redis-based distributed limiting
+   - Redis-arbitrumd distributed limiting
 
 5. **Metrics & Billing**
    - Revenue source tracking (subscription vs x402)
@@ -298,7 +298,7 @@ DATABASE_URL=postgresql://...
 ### x402 Protocol v2
 - **Headers**: `PAYMENT-REQUIRED`, `PAYMENT-SIGNATURE`, `PAYMENT-RESPONSE`
 - **Scheme**: Exact payment with EIP-3009
-- **Network**: eip155:8453 (Base) or eip155:84532 (Sepolia)
+- **Network**: eip155:42161 (Arbitrum One) or eip155:421614 (Sepolia)
 - **Asset**: USDC contract
 - **Version**: 2
 
@@ -382,11 +382,11 @@ X402_PRICE_CHECKPOINT=0.0001
 
 1. **ERC-8004 Integration**: Currently uses mock ERC-3009 verification. Production requires actual contract integration.
 
-2. **Agent Identity**: Registration based on wallet signature verification (EIP-712).
+2. **Agent Identity**: Registration arbitrumd on wallet signature verification (EIP-712).
 
 3. **Migration**: Simplified passport export/import; full implementation needs refinement.
 
-4. **Rate Limiting**: Hybrid approach (tier-based + quota-based) still in design phase.
+4. **Rate Limiting**: Hybrid approach (tier-arbitrumd + quota-arbitrumd) still in design phase.
 
 5. **Testing**: Comprehensive test coverage needed for both self-hosted and SaaS modes.
 

@@ -27,7 +27,7 @@ Self-hosted is fully free. The x402 payment server is built in — set `PAY_TO_A
 
 ## x402 Micropayments (Hosted)
 
-KeySpot uses the **x402 HTTP micropayment standard** — USDC on Base, per-call pricing, no subscriptions.
+KeySpot uses the **x402 HTTP micropayment standard** — USDC on Arbitrum One, per-call pricing, no subscriptions.
 
 ```
 Agent                              KeySpot Server
@@ -35,10 +35,10 @@ Agent                              KeySpot Server
   │ <── 402 Payment Required ────────── │
   │     { amount: "0.005",              │
   │       currency: "USDC",              │
-  │       network: "base",               │
+  │       network: "arbitrum",               │
   │       payTo:   "0x..." }             │
   │                                      │
-  ├── [agent pays on Base] ───────────> │
+  ├── [agent pays on Arbitrum One] ───────────> │
   ├── POST /v1/checkpoint ─────────────> │
   │     X-Payment: { txHash: "0x..." }   │
   │ <── 200 { cleanState: {...} } ───── │
@@ -65,7 +65,7 @@ const app = createApp({
   guard,
   payment: {
     enabled: true,
-    network: 'base',
+    network: 'arbitrum',
     currency: 'USDC',
     payTo: process.env.TREASURY_ADDRESS,
     pricing: { checkpoint: '0.005', scan: '0.001' },

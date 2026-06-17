@@ -83,11 +83,11 @@ Also supports **OpenClaw**, **Hermes**, and generic `guard.wrap(fn, state)`.
 - **Taint tracking** — Catches derived secrets (summaries, embeddings, transformed values) that would otherwise evade detection
 - **PromptShield** — 18 built-in rules detect jailbreak attempts, system prompt extraction, and policy violations before prompts reach the LLM
 - **Pluggable vault adapters** — InMemory (default), AWS Secrets Manager, or custom via `BaseVaultAdapter`
-- **Hash-chained audit logs** — Tamper-proof, Ed25519-signed, optional blockchain anchoring on Base
+- **Hash-chained audit logs** — Tamper-proof, Ed25519-signed, optional blockchain anchoring
 - **Vector store adapters** — Pinecone, Chroma, Qdrant, Weaviate, LanceDB, Milvus — auto-sanitize before upsert
 - **CLI** — `keyspot scan ./src` for file scanning, pre-commit hooks, CI integration with JSON output
 - **Python SDK** — Full TypeScript parity via `pip install keyspot`
-- **x402 micropayments** — Pay-per-checkpoint on Base (USDC) for hosted deployments
+- **x402 micropayments** — Pay-per-checkpoint on-chain for hosted deployments
 - **Streaming scan** — 2048-char rolling window catches secrets across chunk boundaries
 - **Self-hosted or hosted** — Run your own server or use the hosted SaaS with Stripe subscriptions
 
@@ -111,7 +111,6 @@ Also supports **OpenClaw**, **Hermes**, and generic `guard.wrap(fn, state)`.
 ## Documentation
 
 - [Full developer documentation](DOCUMENTATION.md) — API reference, configuration, vault adapters, threat model
-- [Integration guides](INTEGRATIONS.md) — Framework-specific setup (Manus, OpenClaw, Claude Code)
 - [Contributing guide](CONTRIBUTING.md) — Development setup, coding standards, test structure
 - [API reference](docs/api/index.html) — Generated TypeDoc (`pnpm docs`)
 
@@ -119,4 +118,4 @@ Also supports **OpenClaw**, **Hermes**, and generic `guard.wrap(fn, state)`.
 
 ## License
 
-MIT — free for self-hosting. Hosted tier available via x402 micropayments on Base.
+MIT — free for self-hosting. Hosted tier available via x402 micropayments.

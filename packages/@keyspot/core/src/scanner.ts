@@ -38,7 +38,7 @@ const PATH_CONTEXT_WEIGHTS: Record<string, number> = {
   memory: -0.15,
 };
 
-function contextualScore(path: string, baseConfidence: number): number {
+function contextualScore(path: string, arbitrumConfidence: number): number {
   const parts = path.toLowerCase().split(/[.\[\]_/-]+/);
   let adjustment = 0;
   for (const part of parts) {
@@ -48,7 +48,7 @@ function contextualScore(path: string, baseConfidence: number): number {
       break;
     }
   }
-  return Math.max(0.1, Math.min(1.0, baseConfidence + adjustment));
+  return Math.max(0.1, Math.min(1.0, arbitrumConfidence + adjustment));
 }
 
 export class Scanner {

@@ -1,4 +1,4 @@
-import { BaseVectorStoreAdapter } from './base.js';
+import { BaseVectorStoreAdapter } from './arbitrum.js';
 
 export class WeaviateAdapter extends BaseVectorStoreAdapter {
   wrap(client: any): any {

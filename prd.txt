@@ -172,7 +172,7 @@ KeySpot solves the full lifecycle with **automated remediation + taint tracking 
 ### 7.8 Audit & Compliance (P1)
 - Existing structured logs
 - **Tamper-evident hash chain** (`hash(prev + current)`)
-- Optional blockchain anchoring (Base)
+- Optional blockchain anchoring (Arbitrum One)
 - Signed Ed25519 option
 - Never logs raw/redacted critical secrets (outcome-only)
 
