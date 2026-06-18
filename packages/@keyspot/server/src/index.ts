@@ -10,7 +10,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 // ── Validate critical environment variables ──
 
-const REQUIRED_ENV = ['JWT_SECRET', 'MIGRATION_SECRET'];
+const REQUIRED_ENV = ['JWT_SECRET'];
 for (const key of REQUIRED_ENV) {
   if (!process.env[key]) {
     console.error(`[Config] Missing required environment variable: ${key}`);
