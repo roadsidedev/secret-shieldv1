@@ -1,4 +1,4 @@
-import { BaseVectorStoreAdapter } from './arbitrum.js';
+import { BaseVectorStoreAdapter } from './base.js';
 
 export class LanceDBAdapter extends BaseVectorStoreAdapter {
   wrap(table: any): any {

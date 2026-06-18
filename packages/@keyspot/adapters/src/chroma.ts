@@ -1,4 +1,4 @@
-import { BaseVectorStoreAdapter } from './arbitrum.js';
+import { BaseVectorStoreAdapter } from './base.js';
 import type { Collection } from 'chromadb';
 
 export class ChromaAdapter extends BaseVectorStoreAdapter {
