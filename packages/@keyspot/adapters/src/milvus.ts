@@ -1,4 +1,4 @@
-import { BaseVectorStoreAdapter } from './arbitrum.js';
+import { BaseVectorStoreAdapter } from './base.js';
 
 export class MilvusAdapter extends BaseVectorStoreAdapter {
   wrap(client: any): any {

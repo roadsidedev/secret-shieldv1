@@ -1,4 +1,4 @@
-import { BaseVectorStoreAdapter } from './arbitrum.js';
+import { BaseVectorStoreAdapter } from './base.js';
 import type { Index } from '@pinecone-database/pinecone';
 
 export class PineconeAdapter extends BaseVectorStoreAdapter {

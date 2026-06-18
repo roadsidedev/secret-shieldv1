@@ -1,4 +1,4 @@
-export { VectorStoreAdapter, BaseVectorStoreAdapter } from './arbitrum.js';
+export { VectorStoreAdapter, BaseVectorStoreAdapter } from './base.js';
 export { ChromaAdapter } from './chroma.js';
 export { PineconeAdapter } from './pinecone.js';
 export { QdrantAdapter } from './qdrant.js';
