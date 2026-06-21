@@ -1,8 +1,16 @@
 process.env.JWT_SECRET = 'test-jwt-secret-for-vitest';
 process.env.MIGRATION_SECRET = 'test-migration-secret-for-vitest';
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterAll } from 'vitest';
 import { createX402Middleware, DEFAULT_FACILITATOR_URLS } from '../packages/@keyspot/server/src/payments/index.js';
+
+// Suppress unhandled rejections from x402 facilitator initialization
+// (real HTTP calls to facilitators that fail in offline test environment)
+process.on('unhandledRejection', (reason) => {
+  if (reason instanceof Error && reason.message?.includes('Failed to initialize')) {
+    return; // Expected in test environment
+  }
+});
 
 describe('x402 Payment Protocol (official)', () => {
   describe('DEFAULT_FACILITATOR_URLS', () => {

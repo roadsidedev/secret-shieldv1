@@ -76,4 +76,30 @@ describe('Vault (InMemoryVaultAdapter)', () => {
     expect(vault.verifyRef('not-a-ref')).toBe(false);
     expect(vault.verifyRef('vault:v1:onlytwo')).toBe(false);
   });
+
+  it('rejects references with wrong version', () => {
+    const ref = vault.generateRef('test', 'value');
+    const wrongVersion = ref.replace('vault:v1:', 'vault:v2:');
+    expect(vault.verifyRef(wrongVersion)).toBe(false);
+  });
+
+  it('rejects references with tampered HMAC', () => {
+    const ref = vault.generateRef('test', 'value');
+    const parts = ref.split(':');
+    const tamperedHmac = 'a'.repeat(64);
+    const tamperedRef = `${parts[0]}:${parts[1]}:${parts[2]}:${tamperedHmac}:${parts[4]}`;
+    expect(vault.verifyRef(tamperedRef)).toBe(false);
+  });
+
+  it('allows access with visibleTo but no agentId (no ACL check)', async () => {
+    const id = await vault.write('public', { visibleTo: ['agent:allowed'] });
+    const value = await vault.read(id);
+    expect(value).toBe('public');
+  });
+
+  it('ACL with empty visibleTo blocks all agents', async () => {
+    const id = await vault.write('isolated', { visibleTo: [] });
+    const value = await vault.read(id, 'agent:anyone');
+    expect(value).toBeNull();
+  });
 });

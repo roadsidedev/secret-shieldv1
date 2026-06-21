@@ -11,12 +11,23 @@ export default defineConfig({
       // Internal aliases (resolved through meta-package)
       '@roadsidelab/keyspot-core': path.resolve(__dirname, 'packages/@keyspot/core/src'),
       '@roadsidelab/keyspot-vault': path.resolve(__dirname, 'packages/@keyspot/vault/src'),
+      '@roadsidelab/keyspot-vault/circuit-breaker-adapter': path.resolve(__dirname, 'packages/@keyspot/vault/src/circuit-breaker-adapter.ts'),
       '@roadsidelab/keyspot-patterns': path.resolve(__dirname, 'packages/@keyspot/patterns/src'),
       '@roadsidelab/keyspot-adapters': path.resolve(__dirname, 'packages/@keyspot/adapters/src'),
       '@roadsidelab/keyspot-frameworks': path.resolve(__dirname, 'packages/@keyspot/frameworks/src'),
       '@roadsidelab/keyspot-cli': path.resolve(__dirname, 'packages/@keyspot/cli/src'),
       '@roadsidelab/keyspot-server': path.resolve(__dirname, 'packages/@keyspot/server/src/app.ts'),
       '@roadsidelab/keyspot-server/metrics': path.resolve(__dirname, 'packages/@keyspot/server/src/metrics.ts'),
+      // Subpath exports for core
+      '@roadsidelab/keyspot-core/scanner': path.resolve(__dirname, 'packages/@keyspot/core/src/scanner.ts'),
+      '@roadsidelab/keyspot-core/taint': path.resolve(__dirname, 'packages/@keyspot/core/src/taint.ts'),
+      '@roadsidelab/keyspot-core/worker': path.resolve(__dirname, 'packages/@keyspot/core/src/worker.ts'),
+      '@roadsidelab/keyspot-core/security': path.resolve(__dirname, 'packages/@keyspot/core/src/security.ts'),
+      '@roadsidelab/keyspot-core/telemetry': path.resolve(__dirname, 'packages/@keyspot/core/src/telemetry.ts'),
+      '@roadsidelab/keyspot-core/compliance': path.resolve(__dirname, 'packages/@keyspot/core/src/compliance.ts'),
+      '@roadsidelab/keyspot-core/circuit-breaker': path.resolve(__dirname, 'packages/@keyspot/core/src/circuit-breaker.ts'),
+      '@roadsidelab/keyspot-core/errors': path.resolve(__dirname, 'packages/@keyspot/core/src/errors.ts'),
+      '@roadsidelab/keyspot-core/logger': path.resolve(__dirname, 'packages/@keyspot/core/src/logger.ts'),
     }
   },
   plugins: [
@@ -46,8 +57,19 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      include: ['packages/*/src/**/*.ts'],
-      exclude: ['**/*.test.ts', '**/*.spec.ts']
+      include: [
+        'packages/@keyspot/core/src/**/*.ts',
+        'packages/@keyspot/vault/src/**/*.ts',
+        'packages/@keyspot/patterns/src/**/*.ts',
+        'packages/@keyspot/frameworks/src/**/*.ts',
+      ],
+      exclude: ['**/*.test.ts', '**/*.spec.ts', '**/dist/**'],
+      thresholds: {
+        statements: 80,
+        branches: 70,
+        functions: 75,
+        lines: 80,
+      }
     }
   }
 });

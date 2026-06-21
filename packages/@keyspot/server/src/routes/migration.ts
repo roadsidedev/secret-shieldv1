@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
-import { z } from 'zod';
 import crypto from 'node:crypto';
+import { z } from 'zod';
 import { prisma } from '../utils/prisma.js';
+import { logger } from '@roadsidelab/keyspot-core/logger';
 import { requireAuth } from '../middleware/requireAuth.js';
 
 const router: Router = Router();
@@ -76,6 +77,7 @@ function verifyPassportSignature(passport: any, signature: string, publicKeyHex:
     }));
     return verifier.verify(publicKey, Buffer.from(signature, 'hex'));
   } catch {
+    logger.warn('Migration signature verification failed (MIGRATION_SECRET is not an Ed25519 key — ERC-8004 not yet integrated)');
     return false;
   }
 }

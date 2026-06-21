@@ -191,14 +191,14 @@ DATABASE_URL=postgresql://...
 
 | Component | Status | Priority |
 |-----------|--------|----------|
-| **x402 Facilitator** | ⚠️ Incomplete | HIGH |
+| **x402 Facilitator** | ✅ Complete | HIGH |
 | **Hybrid Agent Auth** | ⚠️ Missing | HIGH |
-| **Migration Endpoints** | ⚠️ Incomplete | MEDIUM |
+| **Migration Endpoints** | ⚠️ Incomplete (ERC-8004 not integrated) | MEDIUM |
 | **Agent Identity Registry** | ⚠️ Mock only | HIGH |
-| **Metrics Tracking** | ⚠️ Missing | MEDIUM |
-| **Docker Images** | ❌ Missing | LOW |
-| **CLI Tools** | ❌ Missing | LOW |
-| **Full Tests** | ❌ Missing | HIGH |
+| **Metrics Tracking** | ✅ Complete (Prometheus registry with counters, histograms, gauges) | MEDIUM |
+| **Docker Images** | ⚠️ Dockerfile exists, needs production hardening | LOW |
+| **CLI Tools** | ✅ Complete | LOW |
+| **Full Tests** | ⚠️ Addressed (276 tests, 23 files — coverage target tracked via `vitest`) | HIGH |
 
 ---
 

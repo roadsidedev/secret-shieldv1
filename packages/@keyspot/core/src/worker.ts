@@ -2,17 +2,30 @@ import { Worker, isMainThread, parentPort, workerData } from 'node:worker_thread
 import { existsSync } from 'node:fs';
 import { Scanner } from './scanner.js';
 import { TaintEngine } from './taint.js';
+import { WorkerError } from './errors.js';
+import { CircuitBreaker, type CircuitBreakerOptions } from './circuit-breaker.js';
 
 export interface WorkerJob {
   type: 'scan' | 'prune';
   data: any;
 }
 
+export interface WorkerPoolOptions {
+  size?: number;
+  jobTimeoutMs?: number;
+  useIsolatedVM?: boolean;
+  maxRetries?: number;
+  maxQueueSize?: number;
+  circuitBreaker?: CircuitBreakerOptions;
+}
+
+const BACKOFF_BASE_MS = 1000;
+
 // ── Isolated VM Sandbox ────────────────────────────────────────
 
 let ivm: any = null;
 try {
-  ivm = await (Function('return import("isolated-vm")') as () => Promise<any>)();
+  ivm = await import('isolated-vm');
 } catch {
   // isolated-vm not available; fallback to worker_threads
 }
@@ -30,11 +43,9 @@ export class IsolatedSandbox {
 
   async run<T>(code: string, data: any): Promise<T> {
     if (ivm && this.isolate) {
-      // Use isolated-vm for true memory isolation
       this.context.evalSync(`globalThis.input = ${JSON.stringify(data)}`, { timeout: this.timeoutMs });
       return this.context.evalSync(code, { timeout: this.timeoutMs });
     }
-    // Fallback: run inline
     const fn = new Function('data', code);
     return fn(data);
   }
@@ -53,15 +64,25 @@ export class WorkerPool {
   private queue: { job: WorkerJob; resolve: (val: any) => void; reject: (err: any) => void }[] = [];
   private activeCount = 0;
   private useInlineFallback: boolean;
-  private recycleCount = 0;
+  private circuitBreaker: CircuitBreaker;
+
+  readonly maxRetries: number;
+  readonly maxQueueSize: number;
 
   constructor(
     private size: number = 4,
-    private _recycleAfter: number = 100,
     private jobTimeoutMs: number = 30000,
     private useIsolatedVM: boolean = false,
+    options?: WorkerPoolOptions,
   ) {
     this.useInlineFallback = !this.workerScriptExists() && !useIsolatedVM;
+    this.maxRetries = options?.maxRetries ?? 2;
+    this.maxQueueSize = options?.maxQueueSize ?? 100;
+    this.circuitBreaker = new CircuitBreaker({
+      threshold: 5,
+      resetTimeoutMs: 30_000,
+      ...options?.circuitBreaker,
+    });
   }
 
   private workerScriptExists(): boolean {
@@ -73,6 +94,47 @@ export class WorkerPool {
   }
 
   async run(job: WorkerJob): Promise<any> {
+    if (this.queue.length >= this.maxQueueSize) {
+      throw new WorkerError(
+        `Worker pool queue full (${this.maxQueueSize}), rejecting job`,
+        'WORKER_EXHAUSTED',
+      );
+    }
+
+    return this.runWithRetry(job, 0);
+  }
+
+  private async runWithRetry(job: WorkerJob, attempt: number): Promise<any> {
+    try {
+      return await this.circuitBreaker.call(() => this.executeJob(job));
+    } catch (err) {
+      const isRetryable = err instanceof WorkerError && err.retryable;
+
+      if (isRetryable && attempt < this.maxRetries) {
+        const delay = BACKOFF_BASE_MS * Math.pow(2, attempt);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.runWithRetry(job, attempt + 1);
+      }
+
+      // On final failure, try inline fallback if not already inline
+      if (!this.useInlineFallback && !this.useIsolatedVM && attempt >= this.maxRetries) {
+        try {
+          return await this.runInline(job);
+        } catch {
+          throw new WorkerError(
+            `Worker job failed after ${attempt + 1} attempts, inline fallback also failed`,
+            'WORKER_FAILED',
+            500,
+            false,
+          );
+        }
+      }
+
+      throw err;
+    }
+  }
+
+  private async executeJob(job: WorkerJob): Promise<any> {
     if (this.useIsolatedVM) {
       return this.runIsolated(job);
     }
@@ -94,7 +156,6 @@ export class WorkerPool {
       const code = `
         const matches = [];
         const input = globalThis.input;
-        // Simple pattern matching in sandbox
         const patterns = [/sk-[a-zA-Z0-9]{48}/g, /\\bAKIA[0-9A-Z]{16}\\b/g, /\\b(?:0x)?[a-fA-F0-9]{64}\\b/g];
         for (const re of patterns) {
           let m;
@@ -113,7 +174,10 @@ export class WorkerPool {
       this.activeCount--;
       this.processQueue();
       sandbox.dispose();
-      throw err;
+      throw new WorkerError(
+        `Isolated VM execution failed: ${err instanceof Error ? err.message : String(err)}`,
+        'ISOLATED_VM_FAILURE',
+      );
     }
   }
 
@@ -138,39 +202,56 @@ export class WorkerPool {
 
   private spawnAndRun(job: WorkerJob): Promise<any> {
     this.activeCount++;
+    let worker: Worker | null = null;
+    let terminated = false;
+
     return new Promise((resolve, reject) => {
-      const worker = new Worker(new URL('./worker-script.js', import.meta.url), {
+      worker = new Worker(new URL('./worker-script.js', import.meta.url), {
         workerData: job,
       });
 
       const timeout = setTimeout(() => {
-        worker.terminate();
+        if (terminated) return;
+        terminated = true;
+        worker?.terminate();
         this.activeCount--;
         this.processQueue();
-        reject(new Error('Worker job timed out'));
+        reject(new WorkerError('Worker job timed out', 'WORKER_TIMEOUT'));
       }, this.jobTimeoutMs);
 
       worker.on('message', (result) => {
+        if (terminated) return;
+        terminated = true;
         clearTimeout(timeout);
         this.activeCount--;
         this.processQueue();
         resolve(result);
-        worker.terminate();
+        worker?.terminate();
       });
 
       worker.on('error', (err) => {
+        if (terminated) return;
+        terminated = true;
         clearTimeout(timeout);
         this.activeCount--;
         this.processQueue();
-        reject(err);
+        reject(new WorkerError(
+          `Worker error: ${err.message}`,
+          'WORKER_CRASHED',
+        ));
       });
 
       worker.on('exit', (code) => {
+        if (terminated) return;
+        terminated = true;
         clearTimeout(timeout);
         if (code !== 0) {
           this.activeCount--;
           this.processQueue();
-          reject(new Error(`Worker exited with code ${code}`));
+          reject(new WorkerError(
+            `Worker exited with code ${code}`,
+            'WORKER_CRASHED',
+          ));
         }
       });
     });
@@ -189,6 +270,10 @@ export class WorkerPool {
 
   getQueueSize(): number {
     return this.queue.length;
+  }
+
+  getCircuitBreaker(): CircuitBreaker {
+    return this.circuitBreaker;
   }
 }
 

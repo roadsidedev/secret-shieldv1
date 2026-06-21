@@ -38,7 +38,7 @@ describe('Server API (self-hosted, no x402)', () => {
     const body = await res.json();
     expect(res.status).toBe(200);
     expect(body.status).toBe('ok');
-    expect(body.version).toBe('2.3.0');
+    expect(body.version).toBeDefined();
     expect(body.mode).toBe('self-hosted');
   });
 

@@ -58,9 +58,25 @@ export interface AuditEntry {
   hash: string;
 }
 
+/**
+ * In-memory hash-chained audit logger.
+ *
+ * Entries are tamper-evident: each entry records the hash of the previous,
+ * forming a chain where any modification is detectable. For production use
+ * where audit trails must survive restarts, use {@link PersistedAuditLogger}
+ * from './compliance.js' which persists to file with cryptographic signatures.
+ *
+ * @see PersistedAuditLogger
+ */
 export class AuditLogger {
+  /** Maximum number of in-memory entries before oldest are dropped. */
+  private maxEntries: number;
   private lastHash: string = '0'.repeat(64);
   private entries: AuditEntry[] = [];
+
+  constructor(maxEntries: number = 10_000) {
+    this.maxEntries = maxEntries;
+  }
 
   log(event: Record<string, unknown>): AuditEntry {
     const timestamp = Date.now();
@@ -69,19 +85,39 @@ export class AuditLogger {
     const hash = createHash('sha256').update(data).digest('hex');
     const entry: AuditEntry = { event, timestamp, prevHash, hash };
     this.entries.push(entry);
+    // Drop oldest entries when over capacity
+    if (this.entries.length > this.maxEntries) {
+      this.entries = this.entries.slice(-this.maxEntries);
+    }
     this.lastHash = hash;
     return entry;
   }
 
   verifyChain(entries: AuditEntry[]): boolean {
+    return this.verifyChainDetailed(entries).valid;
+  }
+
+  verifyChainDetailed(entries: AuditEntry[]): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
     let currentPrevHash = '0'.repeat(64);
-    for (const entry of entries) {
-      if (entry.prevHash !== currentPrevHash) return false;
+    let lastTimestamp = 0;
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i]!;
+      if (entry.prevHash !== currentPrevHash) {
+        errors.push(`Entry ${i}: prevHash mismatch (expected ${currentPrevHash}, got ${entry.prevHash})`);
+        continue;
+      }
+      if (entry.timestamp < lastTimestamp) {
+        errors.push(`Entry ${i}: timestamp regression (${entry.timestamp} < ${lastTimestamp})`);
+      }
+      lastTimestamp = entry.timestamp;
       const data = JSON.stringify({ ...entry.event, timestamp: entry.timestamp, prevHash: entry.prevHash });
       currentPrevHash = createHash('sha256').update(data).digest('hex');
-      if (entry.hash !== currentPrevHash) return false;
+      if (entry.hash !== currentPrevHash) {
+        errors.push(`Entry ${i}: hash mismatch (expected ${currentPrevHash}, got ${entry.hash})`);
+      }
     }
-    return true;
+    return { valid: errors.length === 0, errors };
   }
 
   getEntries(): AuditEntry[] {
@@ -92,7 +128,12 @@ export class AuditLogger {
     return this.lastHash;
   }
 
+  /** Reset the audit chain. Only allowed outside production to prevent
+   *  undetectable tampering. For testing use only. */
   clear(): void {
+    if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production') {
+      throw new Error('AuditLogger.clear() is disabled in production — it would destroy tamper evidence');
+    }
     this.entries = [];
     this.lastHash = '0'.repeat(64);
   }

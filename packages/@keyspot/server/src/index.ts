@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createApp, type KeySpotServerConfig } from './app.js';
 import { KeySpot } from '@roadsidelab/keyspot-core';
+import { logger } from '@roadsidelab/keyspot-core/logger';
 import { DEFAULT_FACILITATOR_URLS, type X402Config } from './payments/index.js';
 import { prisma } from './utils/prisma.js';
 import { connectRedis, disconnectRedis } from './utils/redis.js';
@@ -10,10 +11,20 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 // ── Validate critical environment variables ──
 
-const REQUIRED_ENV = ['JWT_SECRET'];
+const REQUIRED_ENV = ['JWT_SECRET', 'DATABASE_URL'];
+if (process.env.ENABLE_X402 === 'true') {
+  REQUIRED_ENV.push('PAY_TO_ADDRESS');
+  if (process.env.X402_FACILITATOR_PROVIDER) {
+    const validProviders = Object.keys(DEFAULT_FACILITATOR_URLS.mainnet);
+    if (!validProviders.includes(process.env.X402_FACILITATOR_PROVIDER)) {
+      console.error(`[Config] Invalid X402_FACILITATOR_PROVIDER "${process.env.X402_FACILITATOR_PROVIDER}". Valid: ${validProviders.join(', ')}`);
+      process.exit(1);
+    }
+  }
+}
 for (const key of REQUIRED_ENV) {
   if (!process.env[key]) {
-    console.error(`[Config] Missing required environment variable: ${key}`);
+    logger.error(`Missing required environment variable: ${key}`);
     process.exit(1);
   }
 }
@@ -71,10 +82,10 @@ if (enableX402 && payTo) {
     },
   };
 
-  console.log(`[x402] Enabled — facilitator: ${facilitatorUrl}`);
-  console.log(`[x402] Network: ${network}`);
-  console.log(`[x402] payTo: ${payTo}`);
-  console.log(`[x402] Price: ${checkpointPrice}`);
+  logger.info(`x402 enabled — facilitator: ${facilitatorUrl}`);
+  logger.info(`x402 network: ${network}`);
+  logger.info(`x402 payTo: ${payTo}`);
+  logger.info(`x402 price: ${checkpointPrice}`);
 }
 
 // ── Create guard and app ──
@@ -88,6 +99,7 @@ const serverConfig: KeySpotServerConfig = {
   guard,
   x402: x402Config,
   trustedProxies: process.env.TRUSTED_PROXIES?.split(',').filter(Boolean) || ['loopback'],
+  version,
 };
 
 const app = createApp(serverConfig);
@@ -97,42 +109,45 @@ const app = createApp(serverConfig);
 async function start() {
   try {
     await prisma.$connect();
-    console.log('[DB] PostgreSQL connected');
+    logger.info('PostgreSQL connected');
   } catch (err) {
-    console.error('[DB] Dataarbitrum connection failed:', err instanceof Error ? err.message : err);
+    logger.error('Database connection failed: ' + (err instanceof Error ? err.message : String(err)));
     if (isProduction) {
       process.exit(1);
     }
-    console.warn('[DB] Running without persistence (development mode)');
+    logger.warn('Running without database (development mode)');
   }
 
   try {
     await connectRedis();
-    console.log('[Redis] Connected');
+    logger.info('Redis connected');
   } catch (err) {
-    console.warn('[Redis] Not available — running without cache');
+    logger.warn('Redis not available — running without cache');
   }
 
+  const pkg = await import('../package.json', { with: { type: 'json' } }).catch(() => ({ default: { version: '0.0.0' } }));
+  const version = (pkg as any).default?.version ?? '0.0.0';
+
   app.listen(PORT, () => {
-    console.log(`KeySpot Server v2.3.0 running on port ${PORT}`);
-    console.log(`  Mode: ${x402Config ? 'hybrid (x402 + subscription)' : 'self-hosted'}`);
-    console.log(`  Environment: ${isProduction ? 'production' : 'development'}`);
-    console.log(`  Dataarbitrum: connected`);
-    console.log(`  Redis: ${process.env.REDIS_URL ? 'configured' : 'not configured'}`);
+    logger.info(`KeySpot Server v${version} running on port ${PORT}`, { mode: x402Config ? 'hybrid' : 'self-hosted', env: isProduction ? 'production' : 'development' });
+    logger.info(`TLS: HTTPS must be terminated upstream (reverse proxy)`);
+    if (!x402Config) {
+      logger.info('x402: Payment enforcement DISABLED (self-hosted mode)');
+    }
   });
 }
 
 start().catch(console.error);
 
 process.on('SIGTERM', async () => {
-  console.log('\nShutting down...');
+  logger.info('Shutting down (SIGTERM)');
   await disconnectRedis();
   await prisma.$disconnect();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
-  console.log('\nShutting down...');
+  logger.info('Shutting down (SIGINT)');
   await disconnectRedis();
   await prisma.$disconnect();
   process.exit(0);

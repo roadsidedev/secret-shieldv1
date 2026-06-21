@@ -1,6 +1,7 @@
 export {
   KeySpot,
   KeySpotConfig,
+  SecureConfig,
   CheckpointTrigger,
   PrunerStrategy,
 } from '@roadsidelab/keyspot-core';
@@ -50,12 +51,31 @@ export {
 } from '@roadsidelab/keyspot-core/telemetry';
 
 export {
-  VaultAdapter,
-  VaultWriteOptions,
-  VaultReference,
-  BaseVaultAdapter,
-  InMemoryVaultAdapter,
-} from '@roadsidelab/keyspot-vault';
+   VaultAdapter,
+   VaultWriteOptions,
+   VaultReference,
+   BaseVaultAdapter,
+   InMemoryVaultAdapter,
+   withCircuitBreaker as vaultWithCircuitBreaker,
+ } from '@roadsidelab/keyspot-vault';
+
+export {
+  KeySpotError,
+  VaultError,
+  WorkerError,
+  AuthError,
+  PaymentRequiredError,
+  ConfigurationError,
+  ValidationError,
+  ScanError,
+  isKeySpotError,
+  toStatusCode,
+} from '@roadsidelab/keyspot-core/errors';
+
+export {
+  CircuitBreaker,
+  CircuitState,
+} from '@roadsidelab/keyspot-core/circuit-breaker';
 
 export {
   Pattern,

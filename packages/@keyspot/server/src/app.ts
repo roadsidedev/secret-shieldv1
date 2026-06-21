@@ -4,9 +4,12 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import crypto from 'node:crypto';
-import { KeySpot } from '@roadsidelab/keyspot-core';
+import { KeySpot, KeySpotError, toStatusCode } from '@roadsidelab/keyspot-core';
+import { logger } from '@roadsidelab/keyspot-core/logger';
 import { createX402Middleware, type X402Config } from './payments/index.js';
 import { MetricsRegistry, metricsMiddleware, metricsHandler } from './metrics.js';
+import { prisma } from './utils/prisma.js';
+import { getRedis } from './utils/redis.js';
 import authRoutes from './routes/auth.js';
 import apiKeyRoutes from './routes/api-keys.js';
 import metricsRoutes from './routes/metrics.js';
@@ -25,6 +28,7 @@ export interface KeySpotServerConfig {
   guard?: KeySpot;
   x402?: X402Config;
   trustedProxies?: string[];
+  version?: string;
 }
 
 export function createApp(config: KeySpotServerConfig = {}): Express {
@@ -40,16 +44,23 @@ export function createApp(config: KeySpotServerConfig = {}): Express {
   // Security headers
   app.use(helmet());
 
-  // CORS
-  app.use(cors({
-    origin: process.env.CORS_ORIGIN || '*',
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  }));
+// CORS — never use wildcard with credentials
+const corsOrigin = process.env.CORS_ORIGIN;
+if (corsOrigin) {
+  app.use(cors({ origin: corsOrigin.split(','), credentials: true, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] }));
+} else {
+  // In production, require explicit CORS_ORIGIN. In dev, allow localhost.
+  if (process.env.NODE_ENV === 'production') {
+    logger.warn('CORS_ORIGIN not set. Allowing no cross-origin requests in production.');
+    app.use(cors({ origin: false, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] }));
+  } else {
+    app.use(cors({ origin: 'http://localhost:3000', credentials: true, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] }));
+  }
+}
 
-  // Raw body for Stripe webhooks (must be before JSON parser)
-  app.use('/stripe/webhook', express.raw({ type: 'application/json' }));
-  app.use(express.json({ limit: '10mb' }));
+// Raw body for Stripe webhooks (must be before JSON parser)
+app.use('/stripe/webhook', express.raw({ type: 'application/json' }));
+app.use(express.json({ limit: '1mb' }));
 
   // Request tracing
   app.use((req: Request, _res: Response, next: NextFunction) => {
@@ -65,6 +76,7 @@ export function createApp(config: KeySpotServerConfig = {}): Express {
     max: 200,
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: (req) => req.ip ?? 'unknown',
     message: { error: 'Too many requests, please try again later.' },
   });
   app.use(generalLimiter);
@@ -74,6 +86,7 @@ export function createApp(config: KeySpotServerConfig = {}): Express {
     max: 10,
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: (req) => req.ip ?? 'unknown',
     message: { error: 'Too many auth attempts, please try again later.' },
   });
 
@@ -85,19 +98,55 @@ export function createApp(config: KeySpotServerConfig = {}): Express {
   app.use((req: Request, _res: Response, next: NextFunction) => {
     const start = Date.now();
     _res.on('finish', () => {
-      console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} ${_res.statusCode} ${Date.now() - start}ms`);
+      logger.info('request completed', {
+        method: req.method,
+        path: req.path,
+        status: _res.statusCode,
+        durationMs: Date.now() - start,
+        requestId: (req as any).requestId,
+      });
     });
     next();
   });
 
-  // ── Health ──
+  // ── Health / Readiness / Liveness ──
   app.get('/health', (_req: Request, res: Response) => {
     res.json({
       status: 'ok',
-      version: '2.3.0',
+      version: config.version ?? '0.0.0',
       mode: enableX402 ? 'hybrid' : 'self-hosted',
       timestamp: Date.now(),
     });
+  });
+
+  // Liveness probe — process is alive and responding
+  app.get('/livez', (_req: Request, res: Response) => {
+    res.json({ status: 'ok' });
+  });
+
+  // Readiness probe — checks that dependencies are reachable
+  app.get('/readyz', async (_req: Request, res: Response) => {
+    const checks: Record<string, boolean | string> = {};
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      checks.database = true;
+    } catch {
+      checks.database = 'unreachable';
+    }
+    try {
+      const redis = getRedis();
+      if (redis) {
+        await redis.ping();
+        checks.redis = true;
+      } else {
+        checks.redis = 'not configured';
+      }
+    } catch {
+      checks.redis = 'unreachable';
+    }
+    checks.vault = guard.getVault() !== null;
+    const healthy = Object.values(checks).every(v => v === true);
+    res.status(healthy ? 200 : 503).json({ status: healthy ? 'ok' : 'degraded', checks });
   });
 
   // Prometheus metrics (internal-facing, requires auth)
@@ -115,30 +164,34 @@ export function createApp(config: KeySpotServerConfig = {}): Express {
   app.use('/stripe', stripeWebhookRoutes);
 
   // ── x402 Payment Middleware (official) ──
+  // Mounted only on /checkpoint to avoid unintended 402 responses on other routes.
+  // If x402 is not configured, payments are not enforced (self-hosted mode).
+  let x402Middleware: express.RequestHandler | null = null;
   if (config.x402) {
-    const { middleware: x402Middleware } = createX402Middleware(config.x402);
-    app.use(x402Middleware);
+    const result = createX402Middleware(config.x402);
+    x402Middleware = result.middleware;
   }
 
   // ── Checkpoint endpoint ──
-  // When x402 is enabled, this endpoint is protected by the paymentMiddleware above.
-  // The middleware intercepts requests, returns 402 with PAYMENT-REQUIRED if unpaid,
-  // verifies and settles via the facilitator when PAYMENT-SIGNATURE is present,
-  // then passes through to this handler.
-  app.post('/checkpoint', authLimiter, requireSubscription('FREE'), async (req: Request, res: Response) => {
+  // When x402 is enabled, this endpoint is protected by the paymentMiddleware.
+  const checkpointHandlers: express.RequestHandler[] = [];
+  if (x402Middleware) checkpointHandlers.push(x402Middleware);
+  checkpointHandlers.push(authLimiter);
+  checkpointHandlers.push(requireSubscription('FREE'));
+  checkpointHandlers.push(async (req: Request, res: Response, next: NextFunction) => {
     try {
       const parsed = checkpointSchema.parse(req.body);
       const cleanState = await guard.checkpoint(parsed.state);
       res.json({ cleanState });
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof z.ZodError) {
         res.status(400).json({ error: 'Invalid request body', details: err.errors });
         return;
       }
-      console.error('[checkpoint]', err);
-      res.status(500).json({ error: 'Internal server error' });
+      next(err);
     }
   });
+  app.post('/checkpoint', ...checkpointHandlers);
 
   // ── Migration Routes ──
   app.use('/api/v1/migration', migrationRoutes);
@@ -150,9 +203,18 @@ export function createApp(config: KeySpotServerConfig = {}): Express {
 
   // Error handler
   app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
-    const requestId = req.requestId;
-    console.error(`[Error] ${requestId}:`, err);
-    res.status(500).json({ error: 'Internal server error', requestId });
+    const requestId = req.requestId ?? crypto.randomUUID();
+    const statusCode = toStatusCode(err);
+    const body: Record<string, unknown> = { error: err.message, requestId };
+    if (err instanceof KeySpotError) {
+      body.code = err.code;
+      body.retryable = err.retryable;
+    }
+    if (statusCode >= 500) {
+      logger.error(`Request failed: ${err.message}`, { requestId, statusCode, error: err.message });
+      body.error = 'Internal server error';
+    }
+    res.status(statusCode).json(body);
   });
 
   return app;

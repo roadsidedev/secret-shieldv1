@@ -1,6 +1,6 @@
 {
   "name": "@roadsidelab/keyspot-patterns",
-  "version": "2.0.0",
+  "version": "0.0.5",
   "description": "Extensible secret detection patterns for KeySpot — 40+ built-in patterns with Aho-Corasick fast matching",
   "type": "module",
   "main": "./dist/index.js",

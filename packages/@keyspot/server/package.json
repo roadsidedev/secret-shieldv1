@@ -1,6 +1,6 @@
 {
   "name": "@roadsidelab/keyspot-server",
-  "version": "2.1.0",
+  "version": "0.0.5",
   "description": "KeySpot HTTP server with auth, API keys, Stripe subscriptions, and usage metrics",
   "type": "module",
   "main": "./dist/index.js",

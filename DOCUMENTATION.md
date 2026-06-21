@@ -32,14 +32,18 @@ KeySpot SDK intercepts agent execution at every critical boundary — session en
 - [11. Audit & Compliance](#11-audit--compliance)
 - [12. Framework Integrations](#12-framework-integrations)
 - [13. Vector Store Adapters](#13-vector-store-adapters)
-- [14. CLI](#14-cli)
-- [15. Observability](#15-observability)
-- [16. Pricing & Deployment](#16-pricing--deployment)
-- [17. Security Architecture](#17-security-architecture)
-- [18. Threat Model](#18-threat-model)
-- [19. Python SDK](#19-python-sdk)
-- [20. Responsible Disclosure](#20-responsible-disclosure)
-- [21. Resources](#21-resources)
+- [13.5. CLI](#135-cli)
+- [14. Error Handling](#14-error-handling)
+- [15. Circuit Breaker](#15-circuit-breaker)
+- [16. Worker Pool](#16-worker-pool)
+- [17. Production Factory](#17-production-factory)
+- [18. Observability](#18-observability)
+- [19. Pricing & Deployment](#19-pricing--deployment)
+- [20. Security Architecture](#20-security-architecture)
+- [21. Threat Model](#21-threat-model)
+- [22. Python SDK](#22-python-sdk)
+- [23. Responsible Disclosure](#23-responsible-disclosure)
+- [24. Resources](#24-resources)
 
 ---
 
@@ -880,7 +884,7 @@ Each sanitise call runs through the full checkpoint cycle — scan, vault, repla
 
 ---
 
-## 14. CLI
+## 13.5. CLI
 
 ### Installation
 
@@ -930,9 +934,164 @@ jobs:
 
 ---
 
-## 15. Observability
+## 14. Error Handling
+
+KeySpot uses a structured error taxonomy with 8 typed error classes. Every error includes a machine-readable `code`, an HTTP `statusCode`, a `retryable` flag, and a `details` map.
+
+### Error Classes
+
+| Class | Default Code | Status | Retryable | When Thrown |
+|-------|-------------|--------|-----------|-------------|
+| `KeySpotError` | — | 500 | false | Base class (extend this for custom errors) |
+| `VaultError` | `VAULT_OPERATION_FAILED` | 500 | true | Vault read/write failures, circuit breaker open |
+| `WorkerError` | `WORKER_FAILED` | 500 | true | Worker crash, timeout, queue full |
+| `AuthError` | `AUTH_FAILED` | 401 | false | Invalid API key, expired token |
+| `PaymentRequiredError` | `PAYMENT_REQUIRED` | 402 | false | x402 payment needed or expired |
+| `ScanError` | `SCAN_FAILED` | 400 | false | Scanner size/depth limit exceeded |
+| `ConfigurationError` | `INVALID_CONFIG` | 500 | false | Missing `createSecure()` vault, invalid config |
+| `ValidationError` | `VALIDATION_FAILED` | 400 | false | Audit chain validation failure |
+
+### Usage
+
+```typescript
+try {
+  await guard.checkpoint(state);
+} catch (err) {
+  if (err instanceof KeySpotError) {
+    console.log(err.code);       // e.g. "VAULT_WRITE_FAILED"
+    console.log(err.statusCode); // 503
+    console.log(err.retryable);  // true
+    console.log(err.details);    // { secretType: "openai_api_key", path: "config.key" }
+    console.log(err.toJSON());   // serializable object
+  }
+}
+```
+
+### Server Integration
+
+The Express error handler automatically uses `toStatusCode(err)` to return the correct HTTP status. `KeySpotError` subclasses include their `code` in the JSON response body.
+
+```typescript
+import { toStatusCode } from '@roadsidelab/keyspot-sdk';
+
+app.use((err, req, res, next) => {
+  res.status(toStatusCode(err)).json({ error: err.message, code: err.code });
+});
+```
+
+---
+
+## 15. Circuit Breaker
+
+A generic state machine that protects downstream services (vault, workers, facilitators) from cascading failures.
+
+### States
+
+```
+CLOSED ──(threshold exceeded)──→ OPEN ──(timeout elapsed)──→ HALF_OPEN
+HALF_OPEN ──(probe succeeds)──→ CLOSED
+HALF_OPEN ──(probe fails)──→ OPEN
+```
+
+### Configuration
+
+```typescript
+import { CircuitBreaker } from '@roadsidelab/keyspot-sdk';
+
+const breaker = new CircuitBreaker({
+  threshold: 5,            // Failures before opening (default: 5)
+  resetTimeoutMs: 30_000,  // Time before HALF_OPEN (default: 30s)
+  halfOpenMaxRequests: 1,  // Probe requests allowed while HALF_OPEN
+  onOpen: (reason, stats) => logger.warn('Circuit opened', { reason, stats }),
+  onClose: (durationMs) => logger.info('Circuit closed', { durationMs }),
+});
+```
+
+### Vault Adapter Wrapping
+
+```typescript
+import { withCircuitBreaker } from '@roadsidelab/keyspot-vault/circuit-breaker-adapter';
+
+const vault = withCircuitBreaker(new AWSSecretsAdapter({ region }));
+// generateRef() and verifyRef() bypass the circuit breaker (pure crypto, no I/O)
+```
+
+When used via `KeySpot.createSecure()`, the vault is automatically wrapped with a circuit breaker.
+
+---
+
+## 16. Worker Pool
+
+The `WorkerPool` runs scan jobs with configurable isolation (worker threads, isolated-vm sandbox, or inline fallback).
+
+### Options
+
+```typescript
+import { WorkerPool } from '@roadsidelab/keyspot-sdk';
+
+const pool = new WorkerPool(
+  4,              // pool size
+  30_000,         // job timeout (ms)
+  false,          // use isolated-vm?
+  {
+    maxRetries: 2,      // Exponential backoff (1s, 2s, 4s)
+    maxQueueSize: 100,  // Reject with WorkerError when exceeded
+    circuitBreaker: { threshold: 5, resetTimeoutMs: 30_000 },
+  }
+);
+```
+
+### Execution Priority
+
+1. **worker_threads** — best isolation, requires compiled `worker-script.js`
+2. **isolated-vm** — sandboxed JS execution, requires `isolated-vm` package
+3. **Inline fallback** — same-process synchronous, used when neither is available
+
+### Retry Behavior
+
+On job failure, the pool retries with exponential backoff. After `maxRetries` exhausted, it attempts inline fallback. If all paths fail, it throws `WorkerError` with code `WORKER_FAILED` and `retryable: false`.
+
+---
+
+## 17. Production Factory
+
+`KeySpot.createSecure()` is a validated factory method with production-hardened defaults.
+
+```typescript
+import { KeySpot, AWSSecretsAdapter } from '@roadsidelab/keyspot-sdk';
+
+const guard = KeySpot.createSecure({
+  vault: new AWSSecretsAdapter({ region: 'us-east-1' }),
+  enableTelemetry: true,       // default: true
+  onSecretFound: async (match) => {
+    // Send alert — PagerDuty, Slack, etc.
+  },
+  onCheckpointTrigger: async (trigger, context) => {
+    // Hook for metrics or logging
+  },
+});
+```
+
+### What It Enables
+
+| Feature | `createSecure()` | Base Constructor |
+|---------|-----------------|------------------|
+| Vault | Required (persistent only) | Optional (defaults to InMemory) |
+| Prompt Shield | Enabled | Disabled |
+| Taint Tracking | Enabled | Depends on ScannerOptions |
+| OpenTelemetry | Enabled (if available) | Disabled |
+| `onSecretFound` | Wired if provided | Not called |
+| Circuit Breaker | Auto-wrapped on vault | Not wrapped |
+
+The factory throws `ConfigurationError` if no vault is provided or if the vault is the `InMemoryVaultAdapter`.
+
+---
+
+## 18. Observability
 
 KeySpot includes three tracing tiers — from zero-overhead noop to full OpenTelemetry.
+
+For production monitoring configuration (Prometheus scrape, Grafana dashboards, alert rules), see the [Monitoring Guide](docs/ops/monitoring-guide.md). For incident response runbooks, see the [Alert Runbook](docs/ops/alert-runbook.md).
 
 ### ConsoleTracer
 
@@ -981,7 +1140,7 @@ The `@roadsidelab/keyspot-server` package exposes Prometheus-format metrics:
 
 ---
 
-## 16. Pricing & Deployment
+## 19. Pricing & Deployment
 
 ### Self-Hosted (Docker)
 
@@ -1062,7 +1221,7 @@ app.listen(3000);
 
 ---
 
-## 17. Security Architecture
+## 20. Security Architecture
 
 ### Worker Pool Isolation
 
@@ -1094,7 +1253,7 @@ Every audit entry links to the SHA-256 hash of the previous entry. Tampering wit
 
 ---
 
-## 18. Threat Model
+## 21. Threat Model
 
 | Threat | Mitigation |
 |--------|------------|
@@ -1110,7 +1269,7 @@ Every audit entry links to the SHA-256 hash of the previous entry. Tampering wit
 
 ---
 
-## 19. Python SDK
+## 22. Python SDK
 
 KeySpot is fully available for Python agents:
 
@@ -1143,7 +1302,7 @@ matches = await scanner.scan("my secret is sk-abc123...")
 
 ---
 
-## 20. Responsible Disclosure
+## 23. Responsible Disclosure
 
 We take security seriously. If you discover a vulnerability:
 
@@ -1159,7 +1318,7 @@ We offer a bug bounty for critical findings that demonstrate real-world impact o
 
 ---
 
-## 21. Resources
+## 24. Resources
 
 ### API Reference
 

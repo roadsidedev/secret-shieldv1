@@ -1,9 +1,10 @@
 import { Scanner, ScannerOptions, Match } from './scanner.js';
 import { TaintEngine } from './taint.js';
-import { VaultAdapter, InMemoryVaultAdapter, VaultWriteOptions } from '@roadsidelab/keyspot-vault';
+import { VaultAdapter, InMemoryVaultAdapter, VaultWriteOptions, withCircuitBreaker } from '@roadsidelab/keyspot-vault';
 import { PromptShield, AuditLogger, PromptShieldRule } from './security.js';
 import { KeySpotTracer, Tracer, OtelTracer } from './telemetry.js';
-import { VectorStoreAdapter, BaseVectorStoreAdapter } from './adapters.js';
+import { BaseVectorStoreAdapter } from './adapters.js';
+import { PaymentRequiredError, VaultError, ConfigurationError } from './errors.js';
 
 // ── Pruner Strategy ─────────────────────────────────────────────
 
@@ -28,6 +29,18 @@ export enum PrunerStrategy {
 
 // ── Config ──────────────────────────────────────────────────────
 
+/**
+ * Configuration for KeySpot hosted (cloud-proxy) mode.
+ * In this mode, the SDK checks with a remote facilitator for x402 payment
+ * authorization before allowing checkpoints. This is distinct from the
+ * self-hosted server mode where payment is enforced at the HTTP layer.
+ */
+export interface HostedConfig {
+  enabled: boolean;
+  agentWalletAddress?: string;
+  facilitatorUrl?: string;
+}
+
 export interface KeySpotConfig extends ScannerOptions {
   vault?: VaultAdapter;
   workerPool?: { size: number };
@@ -41,28 +54,19 @@ export interface KeySpotConfig extends ScannerOptions {
   checkpointTriggers?: Set<CheckpointTrigger>;
   onCheckpointTrigger?: (trigger: CheckpointTrigger, context: Record<string, unknown>) => Promise<void>;
   enableOpenTelemetry?: boolean;
-  hosted?: {
-    enabled: boolean;
-    agentWalletAddress?: string;
-    facilitatorUrl?: string;
-  };
+  hosted?: HostedConfig;
 }
 
-const PATH_SEVERITY: Record<string, number> = {
-  config: 1.0, secret: 1.0, token: 1.0, key: 1.0,
-  password: 1.0, credential: 1.0,
-  env: 0.9, github: 0.8, ci: 0.8,
-  log: 0.5, debug: 0.5,
-  history: 0.4, message: 0.3, chat: 0.3, memory: 0.3,
-};
-
-function contextualConfidence(path: string, arbitrumConfidence: number): number {
-  const parts = path.toLowerCase().split(/[.\[\]_/-]+/);
-  for (const part of parts) {
-    const boost = PATH_SEVERITY[part];
-    if (boost) return Math.min(1.0, arbitrumConfidence + (boost - 0.5) * 0.3);
-  }
-  return Math.max(0.5, arbitrumConfidence - 0.1);
+/**
+ * Production-ready configuration for {@link KeySpot.createSecure}.
+ * Requires a persistent vault adapter — InMemoryVaultAdapter is not permitted.
+ */
+export interface SecureConfig {
+  vault: VaultAdapter;
+  enableTelemetry?: boolean;
+  onSecretFound?: (match: Match) => Promise<void>;
+  /** Optional hook for alerting when checkpoint triggers fire */
+  onCheckpointTrigger?: (trigger: CheckpointTrigger, context: Record<string, unknown>) => Promise<void>;
 }
 
 // ── KeySpot ─────────────────────────────────────────────────────
@@ -81,11 +85,14 @@ export class KeySpot {
   private vectorStores: BaseVectorStoreAdapter[];
   private triggers: Set<CheckpointTrigger>;
   private onTrigger?: (trigger: CheckpointTrigger, context: Record<string, unknown>) => Promise<void>;
+  private accessToken?: { token: string; expiresAt: number };
+  private hostedConfig: HostedConfig | undefined;
 
-  constructor(private config: KeySpotConfig = {}) {
+  constructor(config: KeySpotConfig = {}) {
     this.taintEngine = new TaintEngine();
     this.scanner = new Scanner(config, this.taintEngine);
-    this.vault = config.vault || new InMemoryVaultAdapter();
+    const rawVault = config.vault || new InMemoryVaultAdapter();
+    this.vault = withCircuitBreaker(rawVault);
     this.auditLogger = new AuditLogger();
     this.onSecretFound = config.onSecretFound;
     this.rotationHook = config.rotationHook;
@@ -102,6 +109,7 @@ export class KeySpot {
     this.vectorStores = config.vectorStores ?? [];
     this.triggers = config.checkpointTriggers ?? new Set(Object.values(CheckpointTrigger));
     this.onTrigger = config.onCheckpointTrigger;
+    this.hostedConfig = config.hosted;
 
     if (config.promptShield?.enabled) {
       this.promptShield = new PromptShield(config.promptShield.rules);
@@ -116,6 +124,44 @@ export class KeySpot {
   getVault(): VaultAdapter { return this.vault; }
   getTaintEngine(): TaintEngine { return this.taintEngine; }
   getAuditLogger(): AuditLogger { return this.auditLogger; }
+
+  /**
+   * Create a KeySpot instance with production-hardened defaults.
+   *
+   * Compared to the base constructor, this preset:
+   *  - Requires a persistent VaultAdapter (InMemoryVaultAdapter is rejected)
+   *  - Enables prompt injection shielding
+   *  - Enables taint tracking
+   *  - Enables OpenTelemetry tracing (noop fallback if SDK not configured)
+   *  - Wires onSecretFound and onCheckpointTrigger for external alerting
+   *
+   * @example
+   * ```ts
+   * const guard = KeySpot.createSecure({
+   *   vault: new AWSSecretsAdapter({ region: 'us-east-1' }),
+   *   onSecretFound: async (match) => {
+   *     await alertService.send({ type: match.type, path: match.path });
+   *   },
+   * });
+   * ```
+   */
+  static createSecure(config: SecureConfig): KeySpot {
+    if (!config.vault) {
+      throw new ConfigurationError(
+        'KeySpot.createSecure() requires a persistent VaultAdapter. ' +
+        'Use InMemoryVaultAdapter only for development via the base constructor.',
+        'SECURE_CONFIG_INVALID',
+      );
+    }
+    return new KeySpot({
+      vault: config.vault,
+      taintEnabled: true,
+      promptShield: { enabled: true },
+      enableOpenTelemetry: config.enableTelemetry ?? true,
+      onSecretFound: config.onSecretFound,
+      onCheckpointTrigger: config.onCheckpointTrigger,
+    });
+  }
 
   // ── Vector Store Wrapper ──
 
@@ -141,10 +187,15 @@ export class KeySpot {
   }
 
   private async _checkpoint(state: any): Promise<any> {
-    if (this.config.hosted?.enabled) {
+    if (this.hostedConfig?.enabled) {
       const hasAccess = await this.checkHostedAccess();
       if (!hasAccess) {
-        throw new Error('402 Payment Required: Hosted KeySpot requires x402 payment.');
+        throw new PaymentRequiredError(
+          'Hosted KeySpot requires x402 payment. Use setAccessToken() or configure a facilitatorUrl.',
+          'PAYMENT_REQUIRED',
+          402,
+          { facilitatorUrl: this.hostedConfig.facilitatorUrl ?? null },
+        );
       }
     }
 
@@ -198,15 +249,30 @@ export class KeySpot {
 
         let secretToStore = match.rawValue;
         if (this.rotationHook) {
-          const rotated = await this.rotationHook(match);
-          if (rotated) {
-            secretToStore = rotated;
-            vaultOptions.tags = { ...vaultOptions.tags, rotated: 'true' };
+          try {
+            const rotated = await this.rotationHook(match);
+            if (rotated) {
+              secretToStore = rotated;
+              vaultOptions.tags = { ...vaultOptions.tags, rotated: 'true' };
+            }
+          } catch {
+            // Fail-soft: rotation hook failure → continue with original secret
           }
         }
 
         await this.emitTrigger(CheckpointTrigger.VAULT_WRITE, { secretId: match.secretId, path: match.path });
-        const vaultId = await this.vault.write(secretToStore!, vaultOptions);
+        let vaultId: string;
+        try {
+          vaultId = await this.vault.write(secretToStore!, vaultOptions);
+        } catch (err) {
+          throw new VaultError(
+            `Vault write failed — checkpoint aborted (fail-closed): ${err instanceof Error ? err.message : String(err)}`,
+            'VAULT_WRITE_FAILED',
+            503,
+            true,
+            { secretType: match.type, path: match.path },
+          );
+        }
         const vaultRef = this.vault.generateRef(vaultId, secretToStore!);
 
         // Tag both the vault ref and the secret for taint propagation
@@ -217,6 +283,9 @@ export class KeySpot {
 
         this.replaceAtPath(cleanState, match.path, vaultRef);
         this.auditLogger.log({ type: 'secret_vaulted', secretId: match.secretId, vaultId, path: match.path });
+
+        // Zero rawValue to reduce window of secret exposure in memory
+        match.rawValue = '[CLEARED]';
       }
     }
   }
@@ -235,6 +304,10 @@ export class KeySpot {
   private replaceAtPath(obj: any, path: string, value: any) {
     if (!path) return;
     const parts = path.split(/[.\[\]]+/).filter(Boolean);
+    // Block prototype pollution
+    if (parts.some(p => p === '__proto__' || p === 'constructor' || p === 'prototype')) {
+      return;
+    }
     let current = obj;
     for (let i = 0; i < parts.length - 1; i++) {
       const key = parts[i] as string;
@@ -255,8 +328,65 @@ export class KeySpot {
     }
   }
 
+  // Maximum TTL for access tokens (24 hours). Tokens with longer
+  // expiry are clamped to this value to prevent Infinity-lifetime tokens.
+  private static readonly MAX_TOKEN_TTL = 86_400_000;
+
+  setAccessToken(token: string, expiresAt?: number): void {
+    const now = Date.now();
+    const ttl = expiresAt ? Math.min(expiresAt - now, KeySpot.MAX_TOKEN_TTL) : KeySpot.MAX_TOKEN_TTL;
+    this.accessToken = { token, expiresAt: now + ttl };
+  }
+
   private async checkHostedAccess(): Promise<boolean> {
-    console.log(`[Hosted] Checking access for ${this.config.hosted?.agentWalletAddress}`);
-    return true;
+    const hosted = this.hostedConfig;
+    if (!hosted?.enabled) return true;
+
+    if (this.accessToken && Date.now() < this.accessToken.expiresAt) {
+      return true;
+    }
+    this.accessToken = undefined;
+
+    if (hosted.facilitatorUrl) {
+      if (!hosted.facilitatorUrl.startsWith('https://') && process.env.NODE_ENV !== 'development') {
+        this.auditLogger.log({ type: 'hosted_access_warning', message: 'Facilitator URL must use HTTPS' });
+        return false;
+      }
+      try {
+        const result = await this.obtainFacilitatorToken(hosted.facilitatorUrl, hosted.agentWalletAddress);
+        if (result) {
+          this.setAccessToken(result.token, result.expiresAt);
+          return true;
+        }
+      } catch {
+        // Facilitator unreachable — fall through to denial
+        this.auditLogger.log({ type: 'hosted_access_warning', message: 'Facilitator unreachable' });
+      }
+    }
+
+    return false;
+  }
+
+  private async obtainFacilitatorToken(
+    facilitatorUrl: string,
+    walletAddress?: string,
+  ): Promise<{ token: string; expiresAt: number } | null> {
+    const body: Record<string, string> = {};
+    if (walletAddress) body.walletAddress = walletAddress;
+
+    const response = await fetch(`${facilitatorUrl.replace(/\/$/, '')}/api/v1/access-tokens`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as { token: string; expiresInMs?: number };
+    if (!data?.token) return null;
+
+    return {
+      token: data.token,
+      expiresAt: Date.now() + (data.expiresInMs ?? 60_000),
+    };
   }
 }

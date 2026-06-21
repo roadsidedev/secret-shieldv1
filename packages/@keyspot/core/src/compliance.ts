@@ -199,8 +199,8 @@ export class PersistedAuditLogger extends AuditLogger {
    */
   async anchorToArbitrum(rpcUrl?: string): Promise<{ txHash: string; blockNumber: bigint } | null> {
     try {
-      const { createPublicClient, http } = await (Function('return import("viem")') as () => Promise<any>)();
-      const { arbitrum } = await (Function('return import("viem/chains")') as () => Promise<any>)();
+      const { createPublicClient, http } = await import('viem');
+      const { arbitrum } = await import('viem/chains');
       const client = createPublicClient({
         chain: arbitrum,
         transport: http(rpcUrl || 'https://arb1.arbitrum.io/rpc'),
