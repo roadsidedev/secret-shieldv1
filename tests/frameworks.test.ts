@@ -200,4 +200,46 @@ describe('Framework Wrappers', () => {
       expect(result.status).toBe('clean');
     });
   });
+
+  describe('Error Propagation', () => {
+    it('withKeySpot propagates errors from the guard', async () => {
+      const guard = new KeySpot({ hosted: { enabled: true } });
+      const chain = {
+        invoke: vi.fn().mockResolvedValue({ output: 'test' }),
+      };
+      const guarded = withKeySpot(chain, guard);
+      await expect(guarded.invoke({})).rejects.toThrow();
+    });
+
+    it('withKeySpot propagates errors from the original invoke', async () => {
+      const guard = new KeySpot();
+      const chain = {
+        invoke: vi.fn().mockRejectedValue(new Error('chain error')),
+      };
+      const guarded = withKeySpot(chain, guard);
+      await expect(guarded.invoke({})).rejects.toThrow('chain error');
+    });
+
+    it('wrapOpenAI propagates errors from original create', async () => {
+      const guard = new KeySpot();
+      const client = {
+        chat: { completions: { create: vi.fn().mockRejectedValue(new Error('API error')) } },
+      };
+      const guarded = wrapOpenAI(client, guard);
+      await expect(
+        guarded.chat.completions.create({ messages: [] })
+      ).rejects.toThrow('API error');
+    });
+
+    it('wrapAnthropic propagates errors from original create', async () => {
+      const guard = new KeySpot();
+      const client = {
+        messages: { create: vi.fn().mockRejectedValue(new Error('Anthropic error')) },
+      };
+      const guarded = wrapAnthropic(client, guard);
+      await expect(
+        guarded.messages.create({ messages: [] })
+      ).rejects.toThrow('Anthropic error');
+    });
+  });
 });

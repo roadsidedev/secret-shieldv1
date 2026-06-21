@@ -48,6 +48,21 @@ const cleanState = await guard.checkpoint({
 // config.apiKey -> "vault:v1:vault_abc123:abcd1234...:1717500000000"
 ```
 
+### Production Setup
+
+```typescript
+import { KeySpot, AWSSecretsAdapter } from '@roadsidelab/keyspot-sdk';
+
+const guard = KeySpot.createSecure({
+  vault: new AWSSecretsAdapter({ region: 'us-east-1' }),
+  onSecretFound: async (match) => {
+    await sendAlert(match.type, match.path);
+  },
+});
+```
+
+`createSecure()` rejects `InMemoryVaultAdapter`, enables prompt shielding, taint tracking, and telemetry. For dev environments use the base constructor.
+
 One-line auto-detect (works with any framework):
 
 ```typescript
@@ -111,8 +126,12 @@ Also supports **OpenClaw**, **Hermes**, and generic `guard.wrap(fn, state)`.
 ## Documentation
 
 - [Full developer documentation](DOCUMENTATION.md) — API reference, configuration, vault adapters, threat model
+- [Migration guide](MIGRATION.md) — Breaking changes from v2.x
 - [Contributing guide](CONTRIBUTING.md) — Development setup, coding standards, test structure
 - [API reference](docs/api/index.html) — Generated TypeDoc (`pnpm docs`)
+- [Ops runbooks](docs/ops/alert-runbook.md) — Incident response (secret detected, vault down, false positives)
+- [Deployment checklist](docs/ops/deployment-checklist.md) — Production pre-flight, shutdown, rollback
+- [Monitoring guide](docs/ops/monitoring-guide.md) — Prometheus scrape config, Grafana dashboards, alert rules
 
 ---
 

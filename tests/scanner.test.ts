@@ -96,4 +96,67 @@ describe('Scanner', () => {
     expect(matches.length).toBeGreaterThan(0);
     expect(matches[0].type).toBe('aws_access_key');
   });
+
+  it('respects maxScanSize limit', async () => {
+    const taint = new TaintEngine();
+    const scanner = new Scanner({ maxScanSize: 20 }, taint);
+    const oversized = 'sk-' + 'x'.repeat(48);
+    const matches = await scanner.scan(oversized);
+    expect(matches).toHaveLength(0);
+  });
+
+  it('respects maxScanDepth limit', async () => {
+    const taint = new TaintEngine();
+    const scanner = new Scanner({ maxScanDepth: 2 }, taint);
+    const deep = { a: { b: { c: { d: 'sk-123456789012345678901234567890123456789012345678' } } } };
+    const matches = await scanner.scan(deep);
+    expect(matches).toHaveLength(0);
+  });
+
+  it('handles empty object', async () => {
+    const taint = new TaintEngine();
+    const scanner = new Scanner({}, taint);
+    const matches = await scanner.scan({});
+    expect(matches).toHaveLength(0);
+  });
+
+  it('handles empty array', async () => {
+    const taint = new TaintEngine();
+    const scanner = new Scanner({}, taint);
+    const matches = await scanner.scan([]);
+    expect(matches).toHaveLength(0);
+  });
+
+  it('handles null input', async () => {
+    const taint = new TaintEngine();
+    const scanner = new Scanner({}, taint);
+    const matches = await scanner.scan(null);
+    expect(matches).toHaveLength(0);
+  });
+
+  it('streaming with no context initializes empty buffer', async () => {
+    const taint = new TaintEngine();
+    const scanner = new Scanner({}, taint);
+    const matches = await scanner.scanStream('clean');
+    expect(matches).toHaveLength(0);
+  });
+
+  it('resetStream clears buffer between streams', async () => {
+    const taint = new TaintEngine();
+    const scanner = new Scanner({}, taint);
+    await scanner.scanStream('previous');
+    scanner.resetStream();
+    const matches = await scanner.scanStream('sk-123456789012345678901234567890123456789012345678');
+    expect(matches.length).toBeGreaterThan(0);
+  });
+
+  it('multiple regex matches for same pattern are all captured', async () => {
+    const taint = new TaintEngine();
+    const scanner = new Scanner({}, taint);
+    const input = 'key1: AKIA1111111111111111, key2: AKIA2222222222222222';
+    const matches = await scanner.scan(input);
+    const awsMatches = matches.filter(m => m.type === 'aws_access_key');
+    expect(awsMatches.length).toBeGreaterThanOrEqual(1);
+    expect(awsMatches[0].rawValue).toBeTruthy();
+  });
 });

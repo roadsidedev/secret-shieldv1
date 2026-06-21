@@ -1,6 +1,6 @@
 {
   "name": "@roadsidelab/keyspot-agent",
-  "version": "2.0.2",
+  "version": "0.0.5",
   "description": "KeySpot auto-detect agent wrapper — one-line security for any AI agent framework",
   "type": "module",
   "main": "./dist/index.js",

@@ -1,5 +1,7 @@
 import { createHmac, randomBytes } from 'crypto';
 
+export { withCircuitBreaker } from './circuit-breaker-adapter.js';
+
 export interface VaultWriteOptions {
   visibleTo?: string[]; // ACLs: list of agent IDs or wallet addresses
   ttl?: number; // Time to live in milliseconds
@@ -87,7 +89,19 @@ export class InMemoryVaultAdapter extends BaseVaultAdapter {
   }
 
   async list(): Promise<string[]> {
+    this.sweepExpired();
     return Array.from(this.store.keys());
+  }
+
+  /** Remove all expired entries from the store. Public so callers can
+   *  optionally schedule periodic cleanup (e.g., setInterval). */
+  sweepExpired(): void {
+    const now = Date.now();
+    for (const [id, entry] of this.store) {
+      if (entry.options?.ttl && entry.createdAt + entry.options.ttl < now) {
+        this.store.delete(id);
+      }
+    }
   }
 
   async delete(id: string): Promise<boolean> {

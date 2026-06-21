@@ -88,10 +88,18 @@ describe('PRD Gap: vectorStores config + wrapVectorStore', () => {
     expect(guard).toBeDefined();
   });
 
-  it('getVault returns the configured vault', () => {
+  it('getVault returns a wrapped vault that delegates correctly', async () => {
     const vault = new InMemoryVaultAdapter();
     const guard = new KeySpot({ vault });
-    expect(guard.getVault()).toBe(vault);
+    const retrieved = guard.getVault();
+    expect(retrieved.generateRef).toBeDefined();
+    expect(retrieved.verifyRef).toBeDefined();
+    expect(retrieved.write).toBeDefined();
+    expect(retrieved.read).toBeDefined();
+    // Writes should still work through the wrapper
+    const id = await retrieved.write('test-secret');
+    const val = await vault.read(id);
+    expect(val).toBe('test-secret');
   });
 });
 

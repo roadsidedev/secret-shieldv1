@@ -1,0 +1,304 @@
+# KeySpot SDK v2.0 Product Requirements Document (PRD)
+
+**Version:** 1.0  
+**Date:** June 4, 2026  
+**Author:** Senior Engineering Review (consolidated from architecture docs + two expert assessments)  
+**Status:** Ready for Engineering Kickoff  
+
+---
+
+## 1. Executive Summary & Vision
+
+**KeySpot** is the **runtime security layer for autonomous AI agents** — not just another secret scanner, but a complete secure-memory infrastructure that enforces the **Checkpoint → Scan → Taint → Vault → Replace → Continue** lifecycle at every critical boundary.
+
+It protects long-lived agents, shared memory, vector stores, tool outputs, and multi-agent communication from credential leakage while enabling zero-knowledge execution and full compliance.
+
+**Vision:** Become “the Cloudflare of AI agents” — the default middleware developers install because operating without it feels irresponsible. Self-hosted is completely free; hosted uses x402 agent-native micropayments.
+
+This PRD merges the **existing v1 SDK architecture** (as documented in the official docs) with all high-impact improvements from both expert reviews. It defines a complete, production-ready v2.0 that ships the P0 must-haves and sets up P1/P2 for enterprise dominance.
+
+---
+
+## 2. Problem Statement & Opportunity
+
+### Core Problem
+Autonomous agents leak secrets into:
+- Conversation history / memory
+- Tool outputs & summaries
+- Vector store embeddings
+- Agent-to-agent messages
+- Checkpoints & persistent state
+
+Once leaked, regex scanners fail (summaries, rewrites, embeddings no longer match patterns). Traditional secret managers don’t operate *inside* the agent runtime.
+
+### Market Opportunity
+- Explosion of long-lived, multi-agent systems (LangChain, CrewAI, AutoGen, Anthropic, OpenAI agents)
+- Regulatory pressure (SOC2, GDPR, HIPAA for AI)
+- Agent economy (on-chain agents paying for services via x402)
+- Vector DBs becoming permanent memory
+
+KeySpot solves the full lifecycle with **automated remediation + taint tracking + boundary enforcement**.
+
+---
+
+## 3. Goals & Objectives
+
+### Business Goals
+- Become the de-facto standard runtime security layer for production agents
+- Achieve >80% adoption in LangChain/Anthropic/OpenAI ecosystems within 12 months
+- Enable revenue via x402 hosted tier while keeping self-hosted 100% free/open-source
+
+### Product Goals
+- Zero raw secrets in agent memory after any checkpoint
+- Full taint propagation for derived content
+- First-class vector DB protection
+- Multi-agent ACLs and boundary enforcement
+- Sub-50ms overhead on typical checkpoints
+- Enterprise-grade audit + compliance
+
+### Technical Goals
+- Maintain 100% backward compatibility with v1 API
+- Full TypeScript + Python parity
+- Extensible via adapters and custom patterns
+
+---
+
+## 4. Target Users & Personas
+
+1. **Agent Engineer / Builder** (primary) – Builds production agents with LangChain/Anthropic/etc.
+2. **Platform / Infra Team** – Deploys fleets of agents (self-hosted or hosted)
+3. **Security / Compliance Officer** – Needs tamper-proof audit + rotation hooks
+4. **Autonomous Agent Developer** – On-chain agents using ERC-8004 wallets and x402
+
+---
+
+## 5. Scope
+
+### In Scope (v2.0)
+- All existing v1 modules (Core API, Scanner, Pruner, Ephemeral Core, Vault Adapters, Checkpoint System, Framework Adapters, Audit, x402)
+- All P0 improvements (see Section 7)
+- Python SDK parity (full feature match)
+- Streaming / incremental scanning
+- Worker pool for Ephemeral Core
+- Pattern Trie / Aho-Corasick + live pattern updates
+- Comprehensive docs, CLI, benchmarks, examples
+
+### Out of Scope (v2.0)
+- SOC2 certification package (P2)
+- Full enterprise dashboard / UI (P2)
+- OPA policy engine (P2)
+- Agent risk scoring (P2)
+
+---
+
+## 6. High-Level Architecture
+
+**Monorepo remains unchanged**  
+`packages/@keyspot/{core, vault, patterns, adapters, server, cli, x402}` + meta `keyspot`
+
+**Key Data Flow (enhanced)**
+1. Agent state → Checkpoint trigger
+2. Scanner (incremental + taint-aware) → detects + assigns `secret_id`
+3. Taint Propagation Engine tags derived content
+4. Pruner (in Ephemeral Worker) → vault.write + reference replacement
+5. Vault (with ACLs + crypto refs + TTL) → stores secret
+6. Clean state + vaultRef returned
+7. Audit log (tamper-evident hash chain)
+
+**Ephemeral Core** now uses bounded worker pool + stronger isolation (`isolated-vm` / `vm2` fallback).
+
+**New Modules**
+- `TaintEngine` (internal to core)
+- `VectorStoreAdapters` (new package or extension of adapters)
+- `PromptShield` (new detection layer)
+- Enhanced `Vault` with ACL + crypto + TTL + rotation hooks
+
+---
+
+## 7. Functional Requirements (Existing + Improvements)
+
+### 7.1 Core API (enhanced v1)
+- `new KeySpot(config)` – unchanged + new options:
+  - `taintEnabled: boolean`
+  - `vectorStores: []`
+  - `promptShield: { enabled, rules }`
+  - `workerPool: { size, ttlJobs }`
+- `guard.wrap(fn, state)` – now supports taint propagation and streaming mode
+- `guard.checkpoint(state)` – now incremental by default
+- `guard.scan()` / `guard.prune()` – unchanged + taint support
+- **New:** `guard.stream(tokens)` for incremental token-by-token scanning
+
+### 7.2 Scanner + Taint Tracking (P0)
+- Recursive deep scan of objects/arrays/strings/conversation history
+- 40+ built-in patterns (existing) + live-updatable registry (GitHub/S3)
+- **Taint Propagation Engine**:
+  - On detection → assign immutable `secretId`
+  - Tag all derived values (summaries, tool outputs, embeddings, rewrites) with `sourceSecretIds: []`
+  - Context-aware scoring (location + entropy)
+- Pattern Trie / Aho-Corasick for initial fast pass
+
+### 7.3 Pruner + Vault (P0)
+- Existing strategies (REDACT, REMOVE, REPLACE) + new `VAULT_WITH_TAINT`
+- **Cryptographic Vault References**:
+  - Format: `vault:v1:<randomId>:<hmac>:<expiry>`
+  - Never includes secret type
+  - HMAC-signed, short-lived (configurable TTL)
+- **Secret ACLs / Multi-Agent Boundary Enforcement**:
+  - `vault.write(secret, { visibleTo: ["agent:treasury", "wallet:0x…"] })`
+  - Resolution fails for unauthorized agents
+- **Secret Rotation Hooks**:
+  - `onSecretFound(match, rotationHook?)` → auto-rotate AWS/HashiCorp/etc. + update ref
+
+### 7.4 Vector Store Sanitization (P0)
+- New adapters: Chroma, Pinecone, Weaviate, Qdrant, LanceDB, Milvus (and extensible)
+- `guard.wrapVectorStore(store)` – intercepts `addDocuments`/`upsert` etc.
+- Scan → taint → prune → vault → embed clean vectors
+
+### 7.5 Ephemeral Core (hardened)
+- Bounded worker pool (pre-warm, recycle after N jobs, forced kill on timeout)
+- Stronger isolation (`isolated-vm` / `vm2` inside worker where possible)
+- Explicit buffer zeroing + memory scrub
+- Best-effort guarantee clearly documented
+
+### 7.6 Checkpoint System (enhanced)
+- All existing triggers + new `VECTOR_WRITE`, `BEFORE_EMBED`
+- Custom triggers can now `intercept: true` for taint/vector flows
+
+### 7.7 Framework Adapters (expanded)
+- Existing (LangChain, Anthropic, OpenAI, Express)
+- New vector store wrappers
+- Python equivalents for all major frameworks
+
+### 7.8 Audit & Compliance (P1)
+- Existing structured logs
+- **Tamper-evident hash chain** (`hash(prev + current)`)
+- Optional blockchain anchoring (Arbitrum One)
+- Signed Ed25519 option
+- Never logs raw/redacted critical secrets (outcome-only)
+
+### 7.9 PromptShield (P1)
+- New detection layer for:
+  - Prompt injection / jailbreaks
+  - Tool abuse
+  - Data exfiltration attempts
+  - “Ignore previous instructions” patterns
+- Runs in parallel or pre-checkpoint
+- Configurable severity + block actions
+
+### 7.10 x402 Payments (unchanged + documented)
+- Fully autonomous agent payments via on-chain identity
+- Self-hosted = free forever
+
+### 7.11 CLI & Server
+- `keyspot scan --git`, pre-commit hooks, GitHub Actions
+- Enhanced server middleware with x402 + new features
+
+### 7.12 Patterns & Extensibility
+- Built-in 40+ patterns (critical → medium severity)
+- Custom pattern registry + live updates
+- Entropy + optional ML anomaly detection (P2)
+
+---
+
+## 8. Non-Functional Requirements
+
+### Performance
+- <50ms median checkpoint on 10k-token history
+- Streaming mode for real-time token arrival
+- Worker pool: max 10 concurrent, recycle after 100 jobs
+- Benchmarks published for LangChain/Anthropic
+
+### Security
+- Zero raw secrets post-prune (best-effort + isolation)
+- Taint never leaks
+- Vault refs cryptographically protected + TTL
+- Rate limiting + max depth/size guards
+- No secret type in references or logs
+
+### Reliability
+- Graceful degradation if worker fails
+- Configurable fallback strategies
+- Full test coverage (>90%)
+
+### Scalability
+- Horizontal scaling via worker pool
+- Multi-tenancy in server (agent-wallet isolation)
+
+### Observability
+- OpenTelemetry traces
+- Prometheus metrics (`secrets_found_total`, `prune_duration_ms`, etc.)
+- Slack/PagerDuty/webhook alerts
+
+---
+
+## 9. Prioritized Roadmap (v2.0)
+
+### P0 – Must Ship for v2.0 (4–6 weeks)
+- Taint Tracking Engine
+- Vector Store Adapters (core 6 DBs)
+- Cryptographic Vault Refs + TTL + ACLs
+- Secret Rotation Hooks
+- Streaming / Incremental Scan
+- Worker Pool + Ephemeral Core hardening
+
+### P1 – Strongly Recommended (next 4 weeks)
+- PromptShield
+- Tamper-proof audit hash chains
+- Python SDK full parity
+- Pattern Trie + live updates
+- CLI / GitHub Action improvements
+
+### P2 – Post-v2.0
+- SOC2 packs, SIEM, OPA, dashboard, risk scoring
+
+---
+
+## 10. Success Metrics & KPIs
+
+- **Adoption:** 500+ GitHub stars, 50+ production agents using it within 3 months
+- **Performance:** <5% overhead on real agent workloads
+- **Security:** Zero critical leaks in audited integrations
+- **Retention:** >70% of self-hosted users upgrade to v2
+- **Revenue:** x402 hosted tier covers infra within 6 months
+
+---
+
+## 11. Risks & Mitigations
+
+| Risk                        | Likelihood | Mitigation                                      |
+|-----------------------------|------------|-------------------------------------------------|
+| Performance regression      | Medium     | Incremental scan + worker pool + benchmarks     |
+| False positives in taint    | Medium     | Context scoring + manual override API           |
+| Python parity delay         | Low        | Parallel Python track with shared test suite    |
+| Isolation guarantees        | High       | Clear documentation + “best-effort” language    |
+
+---
+
+## 12. Tech Stack & Dependencies
+
+- **Primary:** TypeScript, Node.js, `worker_threads`, `isolated-vm` / `vm2`
+- **Python:** `multiprocessing` + sandbox (PyO3 / WASM where needed)
+- **Patterns:** Aho-Corasick + regex fallback
+- **Vaults:** Existing + new adapters
+- **Vector DBs:** Official SDK wrappers
+- **Testing:** Jest + real agent integration tests
+
+---
+
+## Appendix A: Existing Built-in Patterns (from v1)
+
+(Ethereum private keys, OpenAI/Anthropic keys, AWS/GCP creds, GitHub tokens, DB strings, JWTs, RSA/Ed25519 PEM keys, etc. – full list maintained in `@keyspot/patterns`)
+
+## Appendix B: Example Usage (v2)
+
+```ts
+const guard = new KeySpot({
+  vault: new AWSSecretsAdapter(),
+  taintEnabled: true,
+  vectorStores: [new QdrantAdapter(qdrantClient)],
+  promptShield: { enabled: true },
+  workerPool: { size: 8 }
+});
+
+const safeChain = withKeySpot(myLangChainAgent, guard);
+await guard.checkpoint(agentState); // now taint + vector safe

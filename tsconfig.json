@@ -12,8 +12,20 @@
     "sourceMap": true,
     "incremental": true,
     "noUncheckedIndexedAccess": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "exactOptionalPropertyTypes": false
-  }
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": false,
+    "composite": true
+  },
+  "references": [
+    { "path": "packages/@keyspot/patterns" },
+    { "path": "packages/@keyspot/vault" },
+    { "path": "packages/@keyspot/core" },
+    { "path": "packages/@keyspot/adapters" },
+    { "path": "packages/@keyspot/cli" },
+    { "path": "packages/@keyspot/frameworks" },
+    { "path": "packages/@keyspot/server" },
+    { "path": "packages/keyspot-agent" },
+    { "path": "packages/keyspot-sdk" }
+  ]
 }

@@ -90,13 +90,7 @@ export class OtelTracer implements Tracer {
   private otel: any = null;
 
   constructor(private name: string = 'keyspot') {
-    try {
-      // Attempt to load real OpenTelemetry
-      const otelModule = (Function('return import("@opentelemetry/api")') as () => Promise<any>);
-      otelModule().then(mod => { this.otel = mod; }).catch(() => {});
-    } catch {
-      // OTel not available; use built-in performance spans
-    }
+    import('@opentelemetry/api').then(mod => { this.otel = mod; }).catch(() => {});
   }
 
   startSpan(name: string, attributes?: Record<string, unknown>): Span {

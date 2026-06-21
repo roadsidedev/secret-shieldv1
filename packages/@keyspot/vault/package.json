@@ -1,6 +1,6 @@
 {
   "name": "@roadsidelab/keyspot-vault",
-  "version": "2.0.0",
+  "version": "0.0.5",
   "description": "Pluggable secret storage with cryptographic vault references, TTL, ACLs, and rotation hooks",
   "type": "module",
   "main": "./dist/index.js",
@@ -13,6 +13,10 @@
     "./aws": {
       "types": "./dist/aws.d.ts",
       "import": "./dist/aws.js"
+    },
+    "./circuit-breaker-adapter": {
+      "types": "./dist/circuit-breaker-adapter.d.ts",
+      "import": "./dist/circuit-breaker-adapter.js"
     }
   },
   "files": ["dist"],
@@ -22,7 +26,8 @@
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
-    "@aws-sdk/client-secrets-manager": "^3.0.0"
+    "@aws-sdk/client-secrets-manager": "^3.0.0",
+    "@roadsidelab/keyspot-core": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.0.0"

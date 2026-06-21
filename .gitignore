@@ -5,6 +5,14 @@ node_modules/
 # Build output
 dist/
 *.tsbuildinfo
+# Compiled JS artifacts in src/ (should only contain .ts source)
+packages/*/src/**/*.js
+packages/*/src/**/*.js.map
+packages/*/src/**/*.mjs
+packages/*/src/**/*.mjs.map
+
+# TypeDoc generated docs
+docs/api/
 
 # Environment
 .env

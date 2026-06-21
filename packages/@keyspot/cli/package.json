@@ -1,6 +1,6 @@
 {
   "name": "@roadsidelab/keyspot-cli",
-  "version": "2.0.4",
+  "version": "0.0.5",
   "description": "KeySpot SDK CLI — scan files, install pre-commit hooks, and integrate with CI",
   "type": "module",
   "main": "./dist/index.js",

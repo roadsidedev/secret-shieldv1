@@ -1,5 +1,6 @@
 import { Pattern, builtInPatterns } from '@roadsidelab/keyspot-patterns';
 import { TaintEngine } from './taint.js';
+import { randomUUID } from 'node:crypto';
 
 export interface Match {
   type: string;
@@ -18,6 +19,8 @@ export interface ScannerOptions {
   includeBase64?: boolean;
   contextWindow?: number;
   taintEnabled?: boolean;
+  maxScanSize?: number;
+  maxScanDepth?: number;
 }
 
 const PATH_CONTEXT_WEIGHTS: Record<string, number> = {
@@ -55,28 +58,63 @@ export class Scanner {
   private patterns: Pattern[];
   private taintEngine: TaintEngine;
   private taintEnabled: boolean;
+  private maxScanSize: number;
+  private maxScanDepth: number;
 
   constructor(options: ScannerOptions = {}, taintEngine: TaintEngine) {
     this.patterns = options.patterns || builtInPatterns;
     this.taintEngine = taintEngine;
     this.taintEnabled = options.taintEnabled ?? true;
+    this.maxScanSize = options.maxScanSize ?? 10 * 1024 * 1024;
+    this.maxScanDepth = options.maxScanDepth ?? 50;
+  }
+
+  private approxSize(value: unknown, seen?: Set<object>): number {
+    if (typeof value === 'string') return value.length;
+    if (typeof value === 'number' || typeof value === 'boolean') return 8;
+    if (value === null || value === undefined) return 0;
+    if (typeof value !== 'object') return 0;
+    const visited = seen ?? new Set<object>();
+    if (visited.has(value)) return 0;
+    visited.add(value);
+    if (Array.isArray(value)) {
+      let total = 0;
+      for (const item of value) {
+        total += this.approxSize(item, visited);
+        if (total > this.maxScanSize) return total;
+      }
+      return total;
+    }
+    let total = 0;
+    for (const val of Object.values(value as Record<string, unknown>)) {
+      total += this.approxSize(val, visited);
+      if (total > this.maxScanSize) return total;
+    }
+    return total;
   }
 
   /**
    * Performs a deep scan of the provided data structure.
    */
-  async scan(data: any, path: string = ''): Promise<Match[]> {
+  async scan(data: any, path: string = '', depth: number = 0): Promise<Match[]> {
+    if (depth > this.maxScanDepth) {
+      return [];
+    }
+
     const matches: Match[] = [];
 
     if (typeof data === 'string') {
+      if (data.length > this.maxScanSize) {
+        return [];
+      }
+
       let hasDirectMatch = false;
 
-      // Full regex scan (only runs if trie suggested a match)
       for (const pattern of this.patterns) {
         let match;
         while ((match = pattern.regex.exec(data)) !== null) {
           const rawValue = match[0];
-          const secretId = `sec_${Math.random().toString(36).substring(7)}`;
+          const secretId = `sec_${randomUUID().split('-')[0]}`;
           
           matches.push({
             type: pattern.name,
@@ -96,7 +134,6 @@ export class Scanner {
         pattern.regex.lastIndex = 0;
       }
 
-      // Check for taints only if no direct pattern matched (avoids double-processing)
       if (this.taintEnabled && !hasDirectMatch) {
         const taints = this.taintEngine.getTaints(data);
         if (taints.length > 0) {
@@ -112,11 +149,15 @@ export class Scanner {
       }
     } else if (Array.isArray(data)) {
       for (let i = 0; i < data.length; i++) {
-        matches.push(...(await this.scan(data[i], `${path}[${i}]`)));
+        matches.push(...(await this.scan(data[i], `${path}[${i}]`, depth + 1)));
       }
     } else if (typeof data === 'object' && data !== null) {
+      const estimatedSize = this.approxSize(data);
+      if (estimatedSize > this.maxScanSize) {
+        return [];
+      }
       for (const key in data) {
-        matches.push(...(await this.scan(data[key], path ? `${path}.${key}` : key)));
+        matches.push(...(await this.scan(data[key], path ? `${path}.${key}` : key, depth + 1)));
       }
     }
 
@@ -154,6 +195,11 @@ export class Scanner {
       if (!m.rawValue) return true;
       return newestText.length === 0 || this.streamBuffer.includes(m.rawValue);
     });
+  }
+
+  /** Clear the streaming buffer and release held tokens. */
+  clearStreamBuffer(): void {
+    this.streamBuffer = '';
   }
 
   /** Reset the streaming buffer for a new stream. */
