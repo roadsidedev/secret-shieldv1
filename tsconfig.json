@@ -26,6 +26,8 @@
     { "path": "packages/@keyspot/frameworks" },
     { "path": "packages/@keyspot/server" },
     { "path": "packages/keyspot-agent" },
-    { "path": "packages/keyspot-sdk" }
+    { "path": "packages/keyspot-sdk" },
+    { "path": "packages/@keyspot/mcp" },
+    { "path": "packages/@keyspot/native" }
   ]
 }

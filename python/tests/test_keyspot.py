@@ -83,8 +83,19 @@ class TestVault:
     async def test_verify_ref(self):
         vault = InMemoryVaultAdapter()
         ref = vault.generate_ref("abc123", "secret-value")
-        assert vault.verify_ref(ref, "secret-value") is True
-        assert vault.verify_ref(ref, "wrong-secret") is False
+        assert vault.verify_ref(ref) is True
+        # Forged refs without valid HMAC must fail (even if not expired)
+        assert vault.verify_ref("vault:v1:abc123:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef:9999999999999") is False
+        other = InMemoryVaultAdapter()
+        assert other.verify_ref(ref) is False  # different master key
+
+    @pytest.mark.asyncio
+    async def test_acl_fail_closed_without_agent_id(self):
+        vault = InMemoryVaultAdapter()
+        from keyspot.vault import VaultWriteOptions
+        id = await vault.write("secret", VaultWriteOptions(visible_to=["agent:a"]))
+        assert await vault.read(id) is None
+        assert await vault.read(id, "agent:a") == "secret"
 
 
 class TestPromptShield:

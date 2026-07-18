@@ -1,18 +1,29 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireScope } from '../middleware/requireScope.js';
 import { createKey, listKeys, revokeKey } from '../services/apiKey.js';
 import { getUsageMetrics } from '../services/metrics.js';
 
 const router: Router = Router();
 
+const ALLOWED_SCOPES = [
+  'read:secrets',
+  'write:vault',
+  'read:keys',
+  'write:keys',
+  'read:billing',
+  'write:billing',
+  'read:metrics',
+] as const;
+
 const createKeySchema = z.object({
   name: z.string().min(1).max(100),
-  scopes: z.array(z.string()).optional(),
+  scopes: z.array(z.enum(ALLOWED_SCOPES)).optional(),
   expiresAt: z.string().datetime().optional(),
 });
 
-router.post('/', requireAuth, async (req: Request, res: Response) => {
+router.post('/', requireAuth, requireScope('write:keys'), async (req: Request, res: Response) => {
   try {
     const { name, scopes, expiresAt } = createKeySchema.parse(req.body);
     const result = await createKey({
@@ -37,7 +48,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
-router.get('/', requireAuth, async (req: Request, res: Response) => {
+router.get('/', requireAuth, requireScope('read:keys'), async (req: Request, res: Response) => {
   try {
     const keys = await listKeys(req.user!.id);
     res.json(keys);
@@ -47,7 +58,7 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
-router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
+router.delete('/:id', requireAuth, requireScope('write:keys'), async (req: Request, res: Response) => {
   try {
     await revokeKey(req.params.id!, req.user!.id);
     res.json({ success: true });

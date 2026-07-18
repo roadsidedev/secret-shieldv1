@@ -1,5 +1,6 @@
 import json
 import secrets
+import warnings
 from typing import Optional, Any, List
 from .scanner import Scanner, Match
 from .taint import TaintEngine
@@ -24,6 +25,19 @@ def contextual_score(path: str, base_conf: float) -> float:
     return base_conf
 
 
+def _strip_raw(matches: List[Match]) -> list:
+    result = []
+    for m in matches:
+        d = {"type": m.type, "severity": m.severity, "path": m.path,
+             "redacted": m.redacted, "confidence": m.confidence}
+        if m.secret_id:
+            d["secretId"] = m.secret_id
+        if m.source_secret_ids:
+            d["sourceSecretIds"] = m.source_secret_ids
+        result.append(d)
+    return result
+
+
 class KeySpot:
     def __init__(self, vault: Optional[BaseVaultAdapter] = None,
                  taint_enabled: bool = True,
@@ -38,12 +52,37 @@ class KeySpot:
         self.rotation_hook = rotation_hook
         self.prompt_shield = PromptShield() if prompt_shield_enabled else None
 
+    @staticmethod
+    def create_secure(vault: BaseVaultAdapter,
+                       on_secret_found=None):
+        """Production-preset factory. Rejects InMemoryVaultAdapter."""
+        if not vault:
+            raise ValueError("create_secure requires a persistent VaultAdapter")
+        if vault.is_in_memory():
+            raise ValueError(
+                "create_secure rejects InMemoryVaultAdapter. "
+                "Use a persistent adapter or the base constructor for dev."
+            )
+        return KeySpot(
+            vault=vault,
+            taint_enabled=True,
+            prompt_shield_enabled=True,
+            on_secret_found=on_secret_found,
+        )
+
     async def scan(self, data: Any) -> List[Match]:
         return await self.scanner.scan(data)
 
+    async def scan_safe(self, data: Any) -> list:
+        """Scan and return sanitized dicts (no rawValue)."""
+        return _strip_raw(await self.scan(data))
+
     async def checkpoint(self, state: Any) -> Any:
         self.audit_logger.log({"type": "checkpoint_start", "stateSummary": type(state).__name__})
-        matches = await self.scan(state)
+
+        is_root_string = isinstance(state, str)
+        scan_target = {"__root": state} if is_root_string else state
+        matches = await self.scan(scan_target)
         clean_state = json.loads(json.dumps(state))
 
         for match in matches:
@@ -72,6 +111,8 @@ class KeySpot:
                 self.audit_logger.log({"type": "taint_redacted", "path": match.path})
 
         self.audit_logger.log({"type": "checkpoint_end", "matchesFound": len(matches)})
+        if is_root_string and isinstance(clean_state, dict) and "__root" in clean_state:
+            return clean_state["__root"]
         return clean_state
 
     async def validate_prompt(self, prompt: str) -> dict:
@@ -90,6 +131,8 @@ class KeySpot:
         if not path:
             return
         parts = [p for p in path.replace("[", ".").replace("]", "").split(".") if p]
+        if any(p in ("__proto__", "constructor", "prototype") for p in parts):
+            return
         current = obj
         for i, key in enumerate(parts[:-1]):
             if isinstance(current, list):

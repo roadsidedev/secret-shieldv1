@@ -8,10 +8,13 @@ describe('PRD Gap: PrunerStrategy', () => {
     expect(result.key).toMatch(/^vault:v1:/);
   });
 
-  it('REDACT replaces with truncated value', async () => {
+  it('REDACT replaces with full-mask redaction (no prefix/suffix leak)', async () => {
+    const secret = 'sk-123456789012345678901234567890123456789012345678';
     const guard = new KeySpot({ pruneStrategy: PrunerStrategy.REDACT });
-    const result = await guard.checkpoint({ key: 'sk-123456789012345678901234567890123456789012345678' });
-    expect(result.key).toBe('sk-1...5678');
+    const result = await guard.checkpoint({ key: secret });
+    expect(result.key).toMatch(/^\*+$/);
+    expect(result.key).not.toContain('sk-');
+    expect(result.key).not.toBe(secret);
   });
 
   it('REMOVE sets value to undefined', async () => {

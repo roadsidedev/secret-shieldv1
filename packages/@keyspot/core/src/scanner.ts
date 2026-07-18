@@ -60,6 +60,8 @@ export class Scanner {
   private taintEnabled: boolean;
   private maxScanSize: number;
   private maxScanDepth: number;
+  private includeBase64: boolean;
+  private deepScan: boolean;
 
   constructor(options: ScannerOptions = {}, taintEngine: TaintEngine) {
     this.patterns = options.patterns || builtInPatterns;
@@ -67,6 +69,25 @@ export class Scanner {
     this.taintEnabled = options.taintEnabled ?? true;
     this.maxScanSize = options.maxScanSize ?? 10 * 1024 * 1024;
     this.maxScanDepth = options.maxScanDepth ?? 50;
+    this.includeBase64 = options.includeBase64 ?? false;
+    this.deepScan = options.deepScan ?? false;
+  }
+
+  /** Attempt base64 decode when payload looks encoded (length/charset). */
+  private tryDecodeBase64(data: string): string | null {
+    if (!this.includeBase64 && !this.deepScan) return null;
+    const trimmed = data.trim();
+    if (trimmed.length < 16 || trimmed.length % 4 !== 0) return null;
+    if (!/^[A-Za-z0-9+/]+=*$/.test(trimmed)) return null;
+    try {
+      const decoded = Buffer.from(trimmed, 'base64').toString('utf8');
+      // Only accept if mostly printable
+      if (!/^[\x09\x0a\x0d\x20-\x7e]+$/.test(decoded)) return null;
+      if (decoded.length < 8) return null;
+      return decoded;
+    } catch {
+      return null;
+    }
   }
 
   private approxSize(value: unknown, seen?: Set<object>): number {
@@ -96,42 +117,49 @@ export class Scanner {
   /**
    * Performs a deep scan of the provided data structure.
    */
-  async scan(data: any, path: string = '', depth: number = 0): Promise<Match[]> {
+  async scan(data: any, path: string = '', depth: number = 0, visited?: Set<object>): Promise<Match[]> {
     if (depth > this.maxScanDepth) {
       return [];
     }
 
     const matches: Match[] = [];
+    const seen = visited ?? new Set<object>();
 
     if (typeof data === 'string') {
       if (data.length > this.maxScanSize) {
         return [];
       }
 
+      const textsToScan = [data];
+      const decoded = this.tryDecodeBase64(data);
+      if (decoded) textsToScan.push(decoded);
+
       let hasDirectMatch = false;
 
-      for (const pattern of this.patterns) {
-        let match;
-        while ((match = pattern.regex.exec(data)) !== null) {
-          const rawValue = match[0];
-          const secretId = `sec_${randomUUID().split('-')[0]}`;
-          
-          matches.push({
-            type: pattern.name,
-            severity: pattern.severity,
-            path,
-            redacted: this.redact(rawValue),
-            confidence: contextualScore(path, 0.99),
-            secretId,
-            rawValue
-          });
-          hasDirectMatch = true;
+      for (const text of textsToScan) {
+        for (const pattern of this.patterns) {
+          let match;
+          while ((match = pattern.regex.exec(text)) !== null) {
+            const rawValue = match[0];
+            const secretId = `sec_${randomUUID().split('-')[0]}`;
 
-          if (this.taintEnabled) {
-            this.taintEngine.tag(data, secretId, 'scanner');
+            matches.push({
+              type: pattern.name,
+              severity: pattern.severity,
+              path,
+              redacted: this.redact(rawValue),
+              confidence: contextualScore(path, text === data ? 0.99 : 0.9),
+              secretId,
+              rawValue
+            });
+            hasDirectMatch = true;
+
+            if (this.taintEnabled) {
+              this.taintEngine.tag(data, secretId, 'scanner');
+            }
           }
+          pattern.regex.lastIndex = 0;
         }
-        pattern.regex.lastIndex = 0;
       }
 
       if (this.taintEnabled && !hasDirectMatch) {
@@ -148,16 +176,20 @@ export class Scanner {
         }
       }
     } else if (Array.isArray(data)) {
+      if (seen.has(data)) return [];
+      seen.add(data);
       for (let i = 0; i < data.length; i++) {
-        matches.push(...(await this.scan(data[i], `${path}[${i}]`, depth + 1)));
+        matches.push(...(await this.scan(data[i], `${path}[${i}]`, depth + 1, seen)));
       }
     } else if (typeof data === 'object' && data !== null) {
+      if (seen.has(data)) return [];
+      seen.add(data);
       const estimatedSize = this.approxSize(data);
       if (estimatedSize > this.maxScanSize) {
         return [];
       }
       for (const key in data) {
-        matches.push(...(await this.scan(data[key], path ? `${path}.${key}` : key, depth + 1)));
+        matches.push(...(await this.scan(data[key], path ? `${path}.${key}` : key, depth + 1, seen)));
       }
     }
 
@@ -207,8 +239,20 @@ export class Scanner {
     this.streamBuffer = '';
   }
 
+  /**
+   * Full-mask redaction — do not leak prefix/suffix of secrets.
+   * Known fixed prefixes (sk-, ghp_, etc.) are also fully masked.
+   */
   private redact(secret: string): string {
-    if (secret.length <= 8) return '********';
-    return `${secret.substring(0, 4)}...${secret.substring(secret.length - 4)}`;
+    if (secret.length <= 4) return '****';
+    return '*'.repeat(Math.min(secret.length, 32));
   }
+}
+
+/** Strip raw secret material from matches before external surfaces. */
+export function sanitizeMatches(matches: Match[]): Match[] {
+  return matches.map((m) => {
+    const { rawValue: _r, ...rest } = m;
+    return rest;
+  });
 }

@@ -36,7 +36,7 @@ const features = [
   {
     icon: Shield,
     title: "Audit & Compliance",
-    desc: "Hash-chained, Ed25519-signed audit logs. Optionally anchored to Arbitrum One blockchain. Zero secrets ever logged.",
+    desc: "Hash-chained, Ed25519-signed audit logs. Optional block-timestamp correlation. Secrets are not written to audit payloads.",
   },
 ];
 

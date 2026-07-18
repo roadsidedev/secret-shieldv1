@@ -1,12 +1,14 @@
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { Scanner } from './scanner.js';
 import { TaintEngine } from './taint.js';
-import { WorkerError } from './errors.js';
+import { WorkerError, ConfigurationError, VaultError } from './errors.js';
 import { CircuitBreaker, type CircuitBreakerOptions } from './circuit-breaker.js';
+import { runCheckpoint, type CheckpointInput } from './checkpoint-core.js';
 
 export interface WorkerJob {
-  type: 'scan' | 'prune';
+  type: 'scan' | 'prune' | 'checkpoint';
   data: any;
 }
 
@@ -35,19 +37,39 @@ export class IsolatedSandbox {
   private context: any;
 
   constructor(private memoryLimitMB: number = 64, private timeoutMs: number = 10000) {
-    if (ivm) {
-      this.isolate = new ivm.Isolate({ memoryLimit: memoryLimitMB });
-      this.context = this.isolate.createContextSync();
+    if (!ivm) {
+      throw new ConfigurationError(
+        'isolated-vm is required for IsolatedSandbox. Install isolated-vm or disable useIsolatedVM.',
+        'ISOLATED_VM_UNAVAILABLE',
+      );
     }
+    this.isolate = new ivm.Isolate({ memoryLimit: memoryLimitMB });
+    this.context = this.isolate.createContextSync();
   }
 
-  async run<T>(code: string, data: any): Promise<T> {
-    if (ivm && this.isolate) {
-      this.context.evalSync(`globalThis.input = ${JSON.stringify(data)}`, { timeout: this.timeoutMs });
-      return this.context.evalSync(code, { timeout: this.timeoutMs });
-    }
-    const fn = new Function('data', code);
-    return fn(data);
+  /**
+   * Run fixed scan patterns against data inside the isolate.
+   * Does not accept arbitrary caller-supplied code (no new Function / eval of untrusted source).
+   */
+  async runScan(data: unknown): Promise<unknown[]> {
+    const jail = this.context.global;
+    const dataCopy = new ivm.ExternalCopy(data);
+    jail.setSync('input', dataCopy.copyInto());
+    const code = `
+      (function() {
+        const matches = [];
+        const input = typeof globalThis.input === 'string' ? globalThis.input : JSON.stringify(globalThis.input);
+        const patterns = [/sk-[a-zA-Z0-9]{48}/g, /\\bAKIA[0-9A-Z]{16}\\b/g, /\\b(?:0x)?[a-fA-F0-9]{64}\\b/g];
+        for (const re of patterns) {
+          let m;
+          while ((m = re.exec(input)) !== null) {
+            matches.push({ type: 'sandbox_match', redacted: '****', index: m.index });
+          }
+        }
+        return matches;
+      })()
+    `;
+    return this.context.evalSync(code, { timeout: this.timeoutMs, copy: true });
   }
 
   dispose(): void {
@@ -87,7 +109,8 @@ export class WorkerPool {
 
   private workerScriptExists(): boolean {
     try {
-      return existsSync(new URL('./worker-script.js', import.meta.url).pathname);
+      const p = fileURLToPath(new URL('./worker-script.js', import.meta.url));
+      return existsSync(p);
     } catch {
       return false;
     }
@@ -153,23 +176,11 @@ export class WorkerPool {
     this.activeCount++;
     const sandbox = new IsolatedSandbox(64, this.jobTimeoutMs);
     try {
-      const code = `
-        const matches = [];
-        const input = globalThis.input;
-        const patterns = [/sk-[a-zA-Z0-9]{48}/g, /\\bAKIA[0-9A-Z]{16}\\b/g, /\\b(?:0x)?[a-fA-F0-9]{64}\\b/g];
-        for (const re of patterns) {
-          let m;
-          while ((m = re.exec(input)) !== null) {
-            matches.push({ type: 'sandbox_match', rawValue: m[0], index: m.index });
-          }
-        }
-        return JSON.stringify(matches);
-      `;
-      const result = await sandbox.run<string>(code, job.data);
+      const result = await sandbox.runScan(job.data);
       this.activeCount--;
       this.processQueue();
       sandbox.dispose();
-      return JSON.parse(result);
+      return result;
     } catch (err) {
       this.activeCount--;
       this.processQueue();
@@ -181,6 +192,17 @@ export class WorkerPool {
     }
   }
 
+  private stripRaw(matches: any): any {
+    if (!Array.isArray(matches)) return matches;
+    return matches.map((m: any) => {
+      if (m && typeof m === 'object') {
+        const { rawValue: _r, ...rest } = m;
+        return rest;
+      }
+      return m;
+    });
+  }
+
   private async runInline(job: WorkerJob): Promise<any> {
     this.activeCount++;
     try {
@@ -188,7 +210,9 @@ export class WorkerPool {
       const scanner = new Scanner({}, taintEngine);
       let result;
       if (job.type === 'scan') {
-        result = await scanner.scan(job.data);
+        result = this.stripRaw(await scanner.scan(job.data));
+      } else if (job.type === 'checkpoint') {
+        result = await runCheckpoint(job.data as CheckpointInput);
       }
       this.activeCount--;
       this.processQueue();
@@ -284,7 +308,12 @@ if (!isMainThread && parentPort) {
 
   if (type === 'scan') {
     scanner.scan(data).then(matches => {
-      parentPort?.postMessage(matches);
+      const safe = matches.map(({ rawValue: _r, ...rest }) => rest);
+      parentPort?.postMessage(safe);
+    });
+  } else if (type === 'checkpoint') {
+    runCheckpoint(data as CheckpointInput).then(result => {
+      parentPort?.postMessage(result);
     });
   }
 }

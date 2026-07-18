@@ -91,15 +91,21 @@ describe('Vault (InMemoryVaultAdapter)', () => {
     expect(vault.verifyRef(tamperedRef)).toBe(false);
   });
 
-  it('allows access with visibleTo but no agentId (no ACL check)', async () => {
-    const id = await vault.write('public', { visibleTo: ['agent:allowed'] });
+  it('denies access when visibleTo is set but agentId is omitted (fail-closed)', async () => {
+    const id = await vault.write('restricted', { visibleTo: ['agent:allowed'] });
     const value = await vault.read(id);
-    expect(value).toBe('public');
+    expect(value).toBeNull();
   });
 
   it('ACL with empty visibleTo blocks all agents', async () => {
     const id = await vault.write('isolated', { visibleTo: [] });
     const value = await vault.read(id, 'agent:anyone');
     expect(value).toBeNull();
+  });
+
+  it('toWorkerConfig never includes secretKey', () => {
+    const cfg = vault.toWorkerConfig();
+    expect(cfg).not.toHaveProperty('secretKey');
+    expect((cfg as { secretKey?: string }).secretKey).toBeUndefined();
   });
 });

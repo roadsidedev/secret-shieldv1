@@ -1,0 +1,32 @@
+{
+  "name": "@keyspot/native",
+  "version": "0.1.0",
+  "description": "KeySpot native sealed-memory core — constant-time HMAC, zeroizing buffers, fast secret scanning",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "napi build --platform --release dist",
+    "build:debug": "napi build --platform dist",
+    "prepublishOnly": "pnpm run build",
+    "test": "node -e \"require('./dist').isNativeAvailable() ? console.log('native OK') : process.exit(1)\""
+  },
+  "napi": {
+    "name": "keyspot-native",
+    "triples": {
+      "defaults": true,
+      "additional": ["aarch64-unknown-linux-gnu", "aarch64-apple-darwin", "x86_64-pc-windows-msvc"]
+    }
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.0"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

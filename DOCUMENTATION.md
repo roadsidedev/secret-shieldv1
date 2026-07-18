@@ -766,8 +766,9 @@ logger.logSigned({ type: 'checkpoint', stateSummary: 'object' });
 const result = logger.verifyAgainstFile();
 // { valid: true, entries: 142, errors: [] }
 
-// Optional: anchor the chain root to Arbitrum One blockchain
-await logger.anchorToArbitrum();
+// Optional: record a wall-clock correlation against latest Arbitrum block
+// (does NOT submit an on-chain transaction — see Threat Model)
+await logger.snapshotArbitrumBlock();
 
 logger.close();
 ```
@@ -1083,7 +1084,9 @@ const guard = KeySpot.createSecure({
 | `onSecretFound` | Wired if provided | Not called |
 | Circuit Breaker | Auto-wrapped on vault | Not wrapped |
 
-The factory throws `ConfigurationError` if no vault is provided or if the vault is the `InMemoryVaultAdapter`.
+The factory throws `ConfigurationError` if no vault is provided or if the vault is an `InMemoryVaultAdapter`.
+
+`createSecure` improves defaults; it is **not** by itself a complete “production secure” posture. See [Threat Model](docs/security/threat-model.md) (native sealed-memory core, ops baseline).
 
 ---
 
@@ -1249,29 +1252,31 @@ Not every match is a real secret. The scanner penalises paths like `chat.*`, `me
 
 ### Hash-Chained Audit Logs
 
-Every audit entry links to the SHA-256 hash of the previous entry. Tampering with a historical entry breaks the chain. With `PersistedAuditLogger`, entries are Ed25519-signed and can be anchored to the Arbitrum One blockchain.
+Every audit entry links to the SHA-256 hash of the previous entry. Tampering with a historical entry breaks the chain. With `PersistedAuditLogger`, entries are Ed25519-signed. Optional Arbitrum helpers only snapshot the latest block for wall-clock correlation — they do **not** write on-chain.
 
 ---
 
 ## 21. Threat Model
 
-| Threat | Mitigation |
-|--------|------------|
-| Secrets in agent memory | Vault + reference tokens at every checkpoint |
-| Prompt injection / jailbreaks | PromptShield (18 rules, configurable) |
-| Derived secret laundering | Taint propagation tracking |
-| Worker thread compromise | Process isolation + timeout + memory disposal |
-| Audit log tampering | SHA-256 hash chain + Ed25519 signatures + blockchain anchoring |
-| Supply chain (patterns) | `PatternRegistry.loadFromUrl` with live update capability |
-| Partial streaming coverage | 2048-char rolling window catches cross-chunk secrets |
-| Credential rotation pre-vault | `rotationHook` — rotate before the secret is stored |
-| Observability data leak | Outcome-only audit schema — never the secret |
+**Authoritative document:** [docs/security/threat-model.md](docs/security/threat-model.md)
+
+| Threat | Mitigation | Residual |
+|--------|------------|----------|
+| Secrets in agent state | Vault + reference tokens at checkpoint | Process memory / heap dumps |
+| Prompt injection / jailbreaks | PromptShield (regex heuristics) | Easily bypassed; soft signal only |
+| Derived secret laundering | Taint propagation (caller must propagate) | Substring / transform gaps |
+| Worker compromise | Isolation when configured; fail closed without sandbox | Fallback paths must not use `new Function` |
+| Audit log tampering | SHA-256 hash chain + optional Ed25519 | Chain not durable unless persisted |
+| Supply chain (patterns) | Prefer pinned/signed manifests | Unsigned `loadFromUrl` is risky |
+| Streaming gaps | Rolling window | Secrets larger than window |
+| Log / tool leakage | Never emit `rawValue` on external surfaces | Misconfigured callbacks |
+| Framework I/O | Explicit wrappers | Output-primary until dual-side complete |
 
 ---
 
-## 22. Python SDK
+## 22. Python SDK (Experimental)
 
-KeySpot is fully available for Python agents:
+> **Status: experimental.** Not full TypeScript parity. Do not use in production until the [parity gate](docs/security/threat-model.md) and golden-vector suite pass.
 
 ```bash
 pip install keyspot
@@ -1282,23 +1287,11 @@ from keyspot import KeySpot, Scanner, InMemoryVaultAdapter, TaintEngine, PromptS
 
 guard = KeySpot(taint_enabled=True)
 
-# Checkpoint — same lifecycle as the TypeScript SDK
+# Checkpoint — intended same lifecycle as the TypeScript SDK
 clean = await guard.checkpoint({"key": "sk-123456789012345678901234567890123456789012345678"})
-# clean["key"] → "vault:v1:..."
-
-# Validate prompts
-result = await guard.validate_prompt("Ignore previous instructions...")
-assert result["blocked"] is True
-
-# Scan without vaulting
-matches = await guard.scan({"api_key": "sk-abc123..."})
-
-# Standalone scanner
-scanner = Scanner()
-matches = await scanner.scan("my secret is sk-abc123...")
 ```
 
-**Python exports:** `KeySpot`, `Scanner`, `Match`, `TaintEngine`, `BaseVaultAdapter`, `InMemoryVaultAdapter`, `PromptShield`, `AuditLogger` — same architecture, same guarantees.
+**Python exports (partial):** `KeySpot`, `Scanner`, `Match`, `TaintEngine`, `BaseVaultAdapter`, `InMemoryVaultAdapter`, `PromptShield`, `AuditLogger`. Feature gaps vs TS are tracked in the hardening program.
 
 ---
 

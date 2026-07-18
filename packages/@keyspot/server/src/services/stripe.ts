@@ -16,11 +16,19 @@ function getStripe(): Stripe {
   return stripe;
 }
 
-const TIER_MAP: Record<string, Tier> = {
-  [process.env.STRIPE_PRICE_FREE || '']: Tier.FREE,
-  [process.env.STRIPE_PRICE_PRO || '']: Tier.PRO,
-  [process.env.STRIPE_PRICE_ENTERPRISE || '']: Tier.ENTERPRISE,
-};
+/** Build tier map only from non-empty price IDs — never map '' → ENTERPRISE. */
+function buildTierMap(): Record<string, Tier> {
+  const map: Record<string, Tier> = {};
+  const free = process.env.STRIPE_PRICE_FREE;
+  const pro = process.env.STRIPE_PRICE_PRO;
+  const enterprise = process.env.STRIPE_PRICE_ENTERPRISE;
+  if (free) map[free] = Tier.FREE;
+  if (pro) map[pro] = Tier.PRO;
+  if (enterprise) map[enterprise] = Tier.ENTERPRISE;
+  return map;
+}
+
+const TIER_MAP = buildTierMap();
 
 const TIER_TO_PRICE: Record<Tier, string> = {
   [Tier.FREE]: process.env.STRIPE_PRICE_FREE || '',
@@ -29,11 +37,20 @@ const TIER_TO_PRICE: Record<Tier, string> = {
 };
 
 export function getTierFromPriceId(priceId: string): Tier {
-  return TIER_MAP[priceId] || Tier.FREE;
+  if (!priceId) {
+    return Tier.FREE;
+  }
+  const tier = TIER_MAP[priceId];
+  if (!tier) {
+    console.warn(`[Stripe] Unknown price ID ${priceId} — defaulting to FREE (not ENTERPRISE)`);
+    return Tier.FREE;
+  }
+  return tier;
 }
 
 export function getPriceIdFromTier(tier: Tier): string | undefined {
-  return TIER_TO_PRICE[tier] || undefined;
+  const id = TIER_TO_PRICE[tier];
+  return id || undefined;
 }
 
 export async function createCustomer(email: string, name?: string): Promise<Stripe.Customer> {
@@ -64,11 +81,10 @@ export async function createPortalSession(
   returnUrl: string
 ): Promise<Stripe.BillingPortal.Session> {
   const s = getStripe();
-  const session = await s.billingPortal.sessions.create({
+  return s.billingPortal.sessions.create({
     customer: customerId,
     return_url: returnUrl,
   });
-  return session;
 }
 
 export async function cancelSubscription(subscriptionId: string): Promise<Stripe.Subscription> {
@@ -83,7 +99,11 @@ export async function resumeSubscription(subscriptionId: string): Promise<Stripe
 
 export async function syncSubscriptionFromStripe(stripeSubscription: Stripe.Subscription): Promise<void> {
   const customerId = stripeSubscription.customer as string;
-  const priceId = stripeSubscription.items.data[0]?.price.id || '';
+  const priceId = stripeSubscription.items.data[0]?.price.id;
+  if (!priceId) {
+    console.warn(`[Stripe] Subscription ${stripeSubscription.id} has no price — skipping tier upgrade`);
+    return;
+  }
   const tier = getTierFromPriceId(priceId);
 
   const statusMap: Record<string, SubscriptionStatus> = {
@@ -155,6 +175,9 @@ export async function ensureFreeSubscription(userId: string, email: string): Pro
 
 export function constructWebhookEvent(payload: Buffer, signature: string): Stripe.Event {
   const s = getStripe();
-  const secret = process.env.STRIPE_WEBHOOK_SECRET || '';
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!secret) {
+    throw new Error('STRIPE_WEBHOOK_SECRET is required when processing Stripe webhooks');
+  }
   return s.webhooks.constructEvent(payload, signature, secret);
 }

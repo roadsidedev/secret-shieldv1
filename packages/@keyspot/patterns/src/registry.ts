@@ -11,7 +11,7 @@ export class PatternRegistry {
   private trie: AhoCorasick;
   private liveUpdateTimer?: ReturnType<typeof setInterval>;
 
-  constructor(initialPatterns?: Pattern[], private options?: PatternRegistryOptions) {
+  constructor(initialPatterns?: Pattern[], options?: PatternRegistryOptions) {
     this.patterns = initialPatterns || [...builtInPatterns];
     this.trie = this.buildTrie(this.patterns);
 

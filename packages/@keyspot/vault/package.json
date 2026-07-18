@@ -27,8 +27,10 @@
   },
   "dependencies": {
     "@aws-sdk/client-secrets-manager": "^3.0.0",
-    "@roadsidelab/keyspot-core": "workspace:*"
+    "@roadsidelab/keyspot-core": "workspace:*",
+    "@roadsidelab/keyspot-native": "workspace:*"
   },
+
   "devDependencies": {
     "typescript": "^5.0.0"
   },

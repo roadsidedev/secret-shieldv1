@@ -21,7 +21,7 @@ packages/
     ├── server/        Express server, rate limiting, metrics, x402 payments (Docker only)
     ├── frameworks/    LangChain, Anthropic, OpenAI, OpenClaw, Hermes wrappers
     └── cli/           keyspot scan, install, --git, --prune
-python/                Python SDK (full TypeScript parity)
+python/                Python SDK (experimental until parity gate)
 tests/                 Vitest test suite
 ```
 

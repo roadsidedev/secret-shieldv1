@@ -30,8 +30,10 @@ const importPassportSchema = z.object({
     })),
     signature: z.string(),
   }),
-  siweMessage: z.string(),
-  siweSignature: z.string(),
+  // SIWE fields accepted for forward-compat but NOT treated as proof of wallet control
+  // until a real SIWE verifier is wired. Callers must use migration bearer secret.
+  siweMessage: z.string().optional(),
+  siweSignature: z.string().optional(),
 });
 
 const exportPassportSchema = z.object({
@@ -51,7 +53,9 @@ async function migrationAuth(req: Request, res: Response, next: any): Promise<vo
     return;
   }
   const token = authHeader.replace('Bearer migration ', '');
-  if (token !== MIGRATION_SECRET) {
+  const a = Buffer.from(token);
+  const b = Buffer.from(MIGRATION_SECRET);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
     res.status(401).json({ error: 'Invalid migration token' });
     return;
   }
@@ -135,7 +139,7 @@ router.post('/import', requireAuth, migrationAuth, async (req: Request, res: Res
   }
 });
 
-router.post('/export', requireAuth, async (req: Request, res: Response) => {
+router.post('/export', requireAuth, migrationAuth, async (req: Request, res: Response) => {
   try {
     if (!MIGRATION_SECRET) {
       res.status(503).json({ error: 'Migration not configured (MIGRATION_SECRET missing)' });
@@ -144,7 +148,8 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
 
     const { walletAddress } = exportPassportSchema.parse(req.body);
 
-    // Find agent
+    // Find agent — export requires migration secret (above) to prevent cross-tenant IDOR.
+    // When AgentIdentity gains userId ownership, also filter by req.user.id.
     const identity = await prisma.agentIdentity.findUnique({
       where: { walletAddress },
     });
@@ -154,28 +159,18 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    // Build passport (without raw secrets)
+    // Build passport (without raw secrets). Signature left empty until real Ed25519 key material.
     const passport = {
       agentId: identity.agentId,
       walletAddress: identity.walletAddress,
       agentRegistry: identity.agentRegistry,
       configSnapshot: identity.configSnapshot,
-      vaultMapping: [],
-      checkpoints: [],
+      vaultMapping: [] as unknown[],
+      checkpoints: [] as unknown[],
       signature: '',
+      exportedBy: req.user!.id,
+      exportedAt: Date.now(),
     };
-
-    // Sign passport with migration key
-    const signer = crypto.createSign('ed25519');
-    signer.update(JSON.stringify({
-      agentId: passport.agentId,
-      walletAddress: passport.walletAddress,
-      agentRegistry: passport.agentRegistry,
-      configSnapshot: passport.configSnapshot,
-      vaultMapping: passport.vaultMapping,
-      checkpoints: passport.checkpoints,
-    }));
-    passport.signature = signer.sign(MIGRATION_SECRET, 'hex');
 
     res.json({ passport });
   } catch (err: any) {

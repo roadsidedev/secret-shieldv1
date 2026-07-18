@@ -8,6 +8,11 @@ export interface TaintMetadata {
 
 export class TaintEngine {
   private taintMap = new Map<string, TaintMetadata[]>();
+  private readonly maxEntries: number;
+
+  constructor(options?: { maxEntries?: number }) {
+    this.maxEntries = options?.maxEntries ?? 50_000;
+  }
 
   /**
    * Generates a stable hash for a value to track its taint status.
@@ -15,6 +20,17 @@ export class TaintEngine {
   private hash(value: string | object): string {
     const str = typeof value === 'string' ? value : JSON.stringify(value);
     return createHash('sha256').update(str).digest('hex');
+  }
+
+  private evictIfNeeded() {
+    if (this.taintMap.size <= this.maxEntries) return;
+    // Drop oldest ~10% by insertion order (Map preserves insertion order)
+    const drop = Math.ceil(this.maxEntries * 0.1);
+    let i = 0;
+    for (const key of this.taintMap.keys()) {
+      this.taintMap.delete(key);
+      if (++i >= drop) break;
+    }
   }
 
   /**
@@ -31,6 +47,7 @@ export class TaintEngine {
         timestamp: Date.now()
       });
       this.taintMap.set(h, existing);
+      this.evictIfNeeded();
     }
   }
 

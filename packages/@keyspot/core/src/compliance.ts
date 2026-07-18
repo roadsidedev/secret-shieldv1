@@ -193,11 +193,21 @@ export class PersistedAuditLogger extends AuditLogger {
   }
 
   /**
-   * Anchor the current chain root to Arbitrum One blockchain.
-   * This provides tamper-proof timestamping of the audit chain.
-   * Uses a public RPC endpoint — no private key needed for read-only anchoring.
+   * Record a wall-clock correlation of the chain root against the latest
+   * Arbitrum One block. This does **not** submit an on-chain transaction
+   * and must not be described as blockchain anchoring.
+   *
+   * @deprecated Prefer {@link snapshotArbitrumBlock}. Kept as alias for compatibility.
    */
-  async anchorToArbitrum(rpcUrl?: string): Promise<{ txHash: string; blockNumber: bigint } | null> {
+  async anchorToArbitrum(rpcUrl?: string): Promise<{ snapshotHash: string; blockNumber: bigint } | null> {
+    return this.snapshotArbitrumBlock(rpcUrl);
+  }
+
+  /**
+   * Snapshot the latest Arbitrum block number/timestamp alongside the local
+   * chain root. No on-chain write is performed.
+   */
+  async snapshotArbitrumBlock(rpcUrl?: string): Promise<{ snapshotHash: string; blockNumber: bigint } | null> {
     try {
       const { createPublicClient, http } = await import('viem');
       const { arbitrum } = await import('viem/chains');
@@ -206,26 +216,25 @@ export class PersistedAuditLogger extends AuditLogger {
         transport: http(rpcUrl || 'https://arb1.arbitrum.io/rpc'),
       });
 
-      // Write the chain root as calldata by using eth_call
-      // In production, this would call a specific anchoring contract
       const block = await client.getBlock({ blockTag: 'latest' });
 
-      // Record the anchoring in our log
-      const anchorEntry = this.logSigned({
-        type: 'blockchain_anchor',
+      const snapshotEntry = this.logSigned({
+        type: 'block_timestamp_snapshot',
         network: 'arbitrum',
         chainRoot: this.chainRoot,
         blockNumber: Number(block.number),
         blockTimestamp: Number(block.timestamp),
       });
 
-      console.log(`[Anchor] Chain root ${this.chainRoot.slice(0, 16)}... anchored to Arbitrum One block ${block.number}`);
+      console.log(
+        `[Snapshot] Chain root ${this.chainRoot.slice(0, 16)}... correlated to Arbitrum block ${block.number} (not an on-chain anchor)`,
+      );
       return {
-        txHash: anchorEntry.entry.hash,
+        snapshotHash: snapshotEntry.entry.hash,
         blockNumber: block.number as bigint,
       };
     } catch (err) {
-      console.error('[Anchor] Failed to anchor to Arbitrum One:', err);
+      console.error('[Snapshot] Failed to read Arbitrum block:', err);
       return null;
     }
   }

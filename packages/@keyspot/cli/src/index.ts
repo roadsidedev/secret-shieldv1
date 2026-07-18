@@ -13,6 +13,14 @@ interface ScanOptions {
   git?: boolean;
   prune?: boolean;
   format?: 'text' | 'json';
+  /** Dev-only: include raw secret values in JSON (default false). */
+  includeRaw?: boolean;
+}
+
+function sanitizeMatch(m: Record<string, unknown>, includeRaw?: boolean): Record<string, unknown> {
+  if (includeRaw) return m;
+  const { rawValue: _r, ...rest } = m;
+  return rest;
 }
 
 async function scanFiles(options: ScanOptions): Promise<void> {
@@ -46,7 +54,8 @@ async function scanFiles(options: ScanOptions): Promise<void> {
       if (matches.length > 0) {
         totalMatches += matches.length;
         if (options.format === 'json') {
-          console.log(JSON.stringify({ file, matches }));
+          const safe = matches.map((m) => sanitizeMatch(m as unknown as Record<string, unknown>, options.includeRaw));
+          console.log(JSON.stringify({ file, matches: safe }));
         } else {
           log.scanning(`Scanning ${file}`);
           for (const m of matches) {
@@ -113,7 +122,8 @@ async function printHelp(): Promise<void> {
   log.muted('OPTIONS');
   log.muted('  --git        Scan only files changed in the last commit (for pre-commit)');
   log.muted('  --prune      Auto-redact found secrets in-place');
-  log.muted('  --json       Output in JSON format');
+  log.muted('  --json       Output in JSON format (secrets redacted)');
+  log.muted('  --include-raw  Include raw secrets in JSON (dev only — dangerous)');
   log.muted('  --help       Show this help');
 }
 
@@ -144,6 +154,7 @@ export async function main(): Promise<void> {
       git: args.includes('--git'),
       prune: args.includes('--prune'),
       format: args.includes('--json') ? 'json' : 'text',
+      includeRaw: args.includes('--include-raw'),
     });
     return;
   }

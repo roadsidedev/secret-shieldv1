@@ -44,14 +44,15 @@ describe('Property: Scanner Detection', () => {
     }
   });
 
-  it('redacted string is shorter than original', async () => {
+  it('redacted string does not contain the secret', async () => {
     for (let i = 0; i < 20; i++) {
       const secret = generateSecretKey();
       const taint = new TaintEngine();
       const scanner = new Scanner({}, taint);
       const matches = await scanner.scan(secret);
       for (const match of matches) {
-        expect(match.redacted.length).toBeLessThan(secret.length);
+        expect(match.redacted).not.toContain(secret);
+        expect(match.redacted).toMatch(/^\*+$/);
       }
     }
   });
