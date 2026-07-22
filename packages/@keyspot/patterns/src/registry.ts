@@ -11,12 +11,12 @@ export class PatternRegistry {
   private trie: AhoCorasick;
   private liveUpdateTimer?: ReturnType<typeof setInterval>;
 
-  constructor(initialPatterns?: Pattern[], private options?: PatternRegistryOptions) {
+  constructor(initialPatterns?: Pattern[], { liveUpdateUrl, liveUpdateIntervalMs }: PatternRegistryOptions = {}) {
     this.patterns = initialPatterns || [...builtInPatterns];
     this.trie = this.buildTrie(this.patterns);
 
-    if (options?.liveUpdateUrl && options?.liveUpdateIntervalMs) {
-      this.startLiveUpdates(options.liveUpdateUrl, options.liveUpdateIntervalMs);
+    if (liveUpdateUrl && liveUpdateIntervalMs) {
+      this.startLiveUpdates(liveUpdateUrl, liveUpdateIntervalMs);
     }
   }
 
