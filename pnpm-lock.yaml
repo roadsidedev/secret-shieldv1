@@ -219,6 +219,10 @@ importers:
       '@roadsidelab/keyspot-vault':
         specifier: workspace:*
         version: link:../vault
+    optionalDependencies:
+      '@roadsidelab/keyspot-native':
+        specifier: workspace:*
+        version: link:../native
     devDependencies:
       typescript:
         specifier: ^5.0.0
@@ -248,6 +252,12 @@ importers:
       zod:
         specifier: ^3.22.0
         version: 3.25.76
+    devDependencies:
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
+  packages/@keyspot/native:
     devDependencies:
       typescript:
         specifier: ^5.0.0
@@ -349,6 +359,9 @@ importers:
       '@roadsidelab/keyspot-core':
         specifier: workspace:*
         version: link:../core
+      '@roadsidelab/keyspot-native':
+        specifier: workspace:*
+        version: link:../native
     devDependencies:
       typescript:
         specifier: ^5.0.0
