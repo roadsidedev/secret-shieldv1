@@ -11,8 +11,8 @@
  *  - A warning is emitted once per process
  */
 
-import { createHmac } from 'crypto';
-import { BaseVaultAdapter } from './base.js';
+import { createHmac, randomBytes } from 'crypto';
+import { BaseVaultAdapter, type VaultWriteOptions } from './base.js';
 
 let warned = false;
 
@@ -25,17 +25,17 @@ function warnOnce() {
   );
 }
 
-let native: typeof import('@roadsidelab/keyspot-native') | null = null;
+let native: { hmacSign(key: Uint8Array, data: Uint8Array): Uint8Array; hmacVerify(key: Uint8Array, data: Uint8Array, tag: Uint8Array): boolean; isNativeAvailable(): boolean } | null = null;
 try {
-  native = require('@roadsidelab/keyspot-native');
-  if (!native.isNativeAvailable()) {
-    native = null;
+  const napi = require('@roadsidelab/keyspot-native');
+  if (napi.isNativeAvailable()) {
+    native = napi;
   }
 } catch {
   try {
-    native = require('@keyspot/native');
-    if (!native.isNativeAvailable()) {
-      native = null;
+    const napi = require('@keyspot/native');
+    if (napi.isNativeAvailable()) {
+      native = napi;
     }
   } catch {
     native = null;
@@ -43,6 +43,8 @@ try {
 }
 
 export class NativeVaultAdapter extends BaseVaultAdapter {
+  private store = new Map<string, { value: string; createdAt: number }>();
+
   constructor(secretKey?: string) {
     super(secretKey);
     if (!native) {
@@ -52,6 +54,26 @@ export class NativeVaultAdapter extends BaseVaultAdapter {
 
   override isInMemory(): boolean {
     return true;
+  }
+
+  async write(secret: string, _options?: VaultWriteOptions): Promise<string> {
+    const id = `vault_${randomBytes(8).toString('hex')}`;
+    this.store.set(id, { value: secret, createdAt: Date.now() });
+    return id;
+  }
+
+  async read(id: string, _agentId?: string): Promise<string | null> {
+    const entry = this.store.get(id);
+    if (!entry) return null;
+    return entry.value;
+  }
+
+  async list(): Promise<string[]> {
+    return Array.from(this.store.keys());
+  }
+
+  async delete(id: string): Promise<boolean> {
+    return this.store.delete(id);
   }
 
   override generateRef(id: string, _secret: string, ttl: number = 3600000): string {
@@ -89,7 +111,7 @@ export class NativeVaultAdapter extends BaseVaultAdapter {
     const actual = Buffer.from(hmacHex, 'hex');
     if (expected.length !== actual.length) return false;
     let result = 0;
-    for (let i = 0; i < expected.length; i++) result |= expected[i] ^ actual[i];
+    for (let i = 0; i < expected.length; i++) result |= (expected[i] ?? 0) ^ (actual[i] ?? 0);
     return result === 0;
   }
 }

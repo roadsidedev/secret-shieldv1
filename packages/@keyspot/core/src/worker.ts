@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Scanner } from './scanner.js';
 import { TaintEngine } from './taint.js';
-import { WorkerError, ConfigurationError, VaultError } from './errors.js';
+import { WorkerError, ConfigurationError } from './errors.js';
 import { CircuitBreaker, type CircuitBreakerOptions } from './circuit-breaker.js';
 import { runCheckpoint, type CheckpointInput } from './checkpoint-core.js';
 
@@ -36,14 +36,14 @@ export class IsolatedSandbox {
   private isolate: any;
   private context: any;
 
-  constructor(private memoryLimitMB: number = 64, private timeoutMs: number = 10000) {
+  constructor(private _memoryLimitMB: number = 64, private timeoutMs: number = 10000) {
     if (!ivm) {
       throw new ConfigurationError(
         'isolated-vm is required for IsolatedSandbox. Install isolated-vm or disable useIsolatedVM.',
         'ISOLATED_VM_UNAVAILABLE',
       );
     }
-    this.isolate = new ivm.Isolate({ memoryLimit: memoryLimitMB });
+    this.isolate = new ivm.Isolate({ memoryLimit: this._memoryLimitMB });
     this.context = this.isolate.createContextSync();
   }
 

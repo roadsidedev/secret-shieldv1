@@ -8,23 +8,23 @@
  *  - createSecure fails without native when NODE_ENV=production
  */
 
-import { ConfigurationError } from '@roadsidelab/keyspot-core/errors';
-import { hmacSign, hmacVerify, isNativeAvailable, getNativeLoadInfo } from './index.js';
+import { isNativeAvailable } from './index.js';
 
 export { hmacSign, hmacVerify, isNativeAvailable, getNativeLoadInfo, SecretBuffer } from './index.js';
 
 /**
  * Error thrown when native bindings are required but absent.
- * Catches at KeySpot construction time rather than silently falling back.
  */
-export class NativeRequiredError extends ConfigurationError {
+export class NativeRequiredError extends Error {
+  public readonly code: string;
   constructor() {
     super(
       'KeySpot production mode requires native bindings (@keyspot/native). ' +
       'Install the package and rebuild for your platform, or use dev mode. ' +
       'See docs/security/threat-model.md for details.',
-      'NATIVE_REQUIRED',
     );
+    this.name = 'NativeRequiredError';
+    this.code = 'NATIVE_REQUIRED';
   }
 }
 

@@ -1,7 +1,6 @@
 import { Scanner, ScannerOptions, Match } from './scanner.js';
 import { TaintEngine } from './taint.js';
 import { VaultAdapter, InMemoryVaultAdapter, VaultWriteOptions, withCircuitBreaker } from '@roadsidelab/keyspot-vault';
-import type { VaultWorkerConfig } from '@roadsidelab/keyspot-vault';
 import { PromptShield, AuditLogger, PromptShieldRule } from './security.js';
 import { KeySpotTracer, Tracer, OtelTracer } from './telemetry.js';
 import { BaseVectorStoreAdapter } from './adapters.js';

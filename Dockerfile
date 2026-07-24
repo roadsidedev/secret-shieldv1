@@ -17,14 +17,9 @@ RUN corepack enable && corepack prepare && pnpm install --no-frozen-lockfile
 # Generate Prisma client (creates TypeScript types from schema)
 RUN pnpm --filter @roadsidelab/keyspot-server db:generate
 
-# Build core and its deps first (fixes @keyspot/native import of core/errors)
-RUN pnpm --filter @roadsidelab/keyspot-patterns run build
-RUN pnpm --filter @roadsidelab/keyspot-core run build
-
-# Build native (depends on core/errors)
-RUN pnpm --filter @roadsidelab/keyspot-native run build
-
-# Build the project
+# Build all packages — first pass generates types, second pass completes
+# (handles the cyclic dep between @keyspot/core and @keyspot/vault)
+RUN pnpm build; exit 0
 RUN pnpm build
 
 # ── Production Stage ───────────────────────────────────────────
