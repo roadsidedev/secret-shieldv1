@@ -359,9 +359,6 @@ importers:
       '@roadsidelab/keyspot-core':
         specifier: workspace:*
         version: link:../core
-      '@roadsidelab/keyspot-native':
-        specifier: workspace:*
-        version: link:../native
     devDependencies:
       typescript:
         specifier: ^5.0.0
