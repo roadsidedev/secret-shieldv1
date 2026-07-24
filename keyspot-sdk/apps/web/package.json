@@ -9,6 +9,7 @@
     "lint": "eslint",
     "prebuild": "node scripts/generate-page-map.mjs"
   },
+  "packageManager": "pnpm@9.15.9",
   "dependencies": {
     "@tanstack/react-query": "^5.60.0",
     "jose": "^5.9.0",
