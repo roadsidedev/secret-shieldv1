@@ -12,7 +12,7 @@ COPY keyspot-sdk/apps/ keyspot-sdk/apps/
 # Remove .env files — DATABASE_URL comes from the deployment platform
 RUN find /app -name ".env" -type f -delete
 
-RUN corepack enable && corepack prepare && pnpm install --frozen-lockfile
+RUN corepack enable && corepack prepare && pnpm install --no-frozen-lockfile
 
 # Generate Prisma client (creates TypeScript types from schema)
 RUN pnpm --filter @roadsidelab/keyspot-server db:generate
