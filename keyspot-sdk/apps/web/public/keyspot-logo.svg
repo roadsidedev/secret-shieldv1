@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <rect width="120" height="120" rx="24" fill="#05070a"/>
+  <!-- Blue gradient parallelogram (top-left arm of K) -->
+  <path d="M30 38L58 38L68 58L30 58Z" fill="url(#ks-blue)"/>
+  <!-- White lower-left leg -->
+  <path d="M30 62L52 62L30 90Z" fill="#ffffff"/>
+  <!-- White upper-right arm -->
+  <path d="M56 60L88 38L88 58L64 60Z" fill="#ffffff"/>
+  <!-- White lower-right leg -->
+  <path d="M64 64L88 64L88 86L56 90Z" fill="#ffffff"/>
+  <defs>
+    <linearGradient id="ks-blue" x1="30" y1="38" x2="68" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00d4ff"/>
+      <stop offset="1" stop-color="#0066ff"/>
+    </linearGradient>
+  </defs>
+</svg>
