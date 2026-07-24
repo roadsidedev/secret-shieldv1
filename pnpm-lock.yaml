@@ -365,12 +365,12 @@ importers:
       '@aws-sdk/client-secrets-manager':
         specifier: ^3.0.0
         version: 3.1062.0
-      '@roadsidelab/keyspot-core':
-        specifier: workspace:*
-        version: link:../core
       '@roadsidelab/keyspot-native':
         specifier: workspace:*
         version: link:../native
+      '@roadsidelab/keyspot-patterns':
+        specifier: workspace:*
+        version: link:../patterns
     devDependencies:
       typescript:
         specifier: ^5.0.0

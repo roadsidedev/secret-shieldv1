@@ -1,5 +1,5 @@
 {
   "buildCommand": "pnpm run build",
   "devCommand": "pnpm run dev",
-  "installCommand": "pnpm install"
+  "installCommand": "corepack enable && pnpm install --frozen-lockfile"
 }

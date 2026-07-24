@@ -1,5 +1,5 @@
-import { CircuitBreaker, type CircuitBreakerOptions } from '@roadsidelab/keyspot-core/circuit-breaker';
-import { VaultError } from '@roadsidelab/keyspot-core/errors';
+import { CircuitBreaker, type CircuitBreakerOptions } from '@roadsidelab/keyspot-patterns/circuit-breaker';
+import { VaultError } from '@roadsidelab/keyspot-patterns/errors';
 import type { VaultAdapter, VaultWriteOptions } from './index.js';
 
 export function withCircuitBreaker(
