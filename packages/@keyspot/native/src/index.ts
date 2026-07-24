@@ -55,7 +55,7 @@ export function hmacVerify(key: Uint8Array, data: Uint8Array, tag: Uint8Array): 
   const expected = hmacSign(key, data);
   if (expected.length !== tag.length) return false;
   let result = 0;
-  for (let i = 0; i < expected.length; i++) result |= expected[i] ^ tag[i];
+  for (let i = 0; i < expected.length; i++) result |= (expected[i] ?? 0) ^ (tag[i] ?? 0);
   return result === 0;
 }
 
