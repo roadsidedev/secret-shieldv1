@@ -30,7 +30,8 @@ describe('Scanner', () => {
     const taint = new TaintEngine();
     const scanner = new Scanner({}, taint);
     const matches = await scanner.scan('sk-123456789012345678901234567890123456789012345678');
-    expect(matches[0].redacted).toBe('sk-1...5678');
+    expect(matches[0].redacted).toMatch(/^\*+$/);
+    expect(matches[0].redacted).not.toContain('sk-');
   });
 
   it('redacts short secrets as asterisks', async () => {

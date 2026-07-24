@@ -33,7 +33,37 @@ for (const key of REQUIRED_ENV) {
 
 function resolveFacilitatorUrl(): string {
   const explicit = process.env.X402_FACILITATOR_URL;
-  if (explicit) return explicit;
+  if (explicit) {
+    if (isProduction) {
+      try {
+        const u = new URL(explicit);
+        const allow = (process.env.X402_FACILITATOR_ALLOWLIST || '')
+          .split(',')
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean);
+        const known = new Set([
+          ...Object.values(DEFAULT_FACILITATOR_URLS.mainnet).map((x) => new URL(x).hostname),
+          ...Object.values(DEFAULT_FACILITATOR_URLS.testnet ? { t: DEFAULT_FACILITATOR_URLS.testnet } : {}).map((x) => {
+            try { return new URL(x).hostname; } catch { return ''; }
+          }),
+          ...allow,
+        ]);
+        // Always allow configured DEFAULT hosts
+        for (const v of Object.values(DEFAULT_FACILITATOR_URLS.mainnet)) {
+          try { known.add(new URL(v).hostname); } catch { /* ignore */ }
+        }
+        try { known.add(new URL(DEFAULT_FACILITATOR_URLS.testnet).hostname); } catch { /* ignore */ }
+        if (allow.length > 0 && !allow.includes(u.hostname.toLowerCase()) && !known.has(u.hostname)) {
+          console.error(`[Config] X402_FACILITATOR_URL host ${u.hostname} not in allowlist`);
+          process.exit(1);
+        }
+      } catch {
+        console.error('[Config] Invalid X402_FACILITATOR_URL');
+        process.exit(1);
+      }
+    }
+    return explicit;
+  }
 
   if (!isProduction) return DEFAULT_FACILITATOR_URLS.testnet;
 
@@ -99,7 +129,7 @@ const serverConfig: KeySpotServerConfig = {
   guard,
   x402: x402Config,
   trustedProxies: process.env.TRUSTED_PROXIES?.split(',').filter(Boolean) || ['loopback'],
-  version,
+  version: '0.0.5',
 };
 
 const app = createApp(serverConfig);

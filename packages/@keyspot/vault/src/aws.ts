@@ -9,14 +9,22 @@ import {
 
 export class AWSSecretsAdapter extends BaseVaultAdapter {
   private client: SecretsManagerClient;
+  readonly region: string;
 
   constructor(config: { region: string; secretKey?: string }) {
     super(config.secretKey);
+    this.region = config.region;
     this.client = new SecretsManagerClient({ region: config.region });
   }
 
+  toWorkerConfig(): import('./index.js').VaultWorkerConfig {
+    // Never serialize the HMAC master key into worker payloads
+    return { type: 'aws', options: { region: this.region } };
+  }
+
   async write(secret: string, options?: VaultWriteOptions): Promise<string> {
-    const name = `keyspot/secret/${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    const { randomBytes } = await import('crypto');
+    const name = `keyspot/secret/${randomBytes(16).toString('hex')}`;
     const command = new CreateSecretCommand({
       Name: name,
       SecretString: secret,

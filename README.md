@@ -6,7 +6,9 @@
 
 **Runtime credential hygiene for autonomous AI agents.**
 
-KeySpot SDK intercepts agent execution at every critical boundary — session end, memory save, tool return — and runs a **Checkpoint -> Scan -> Vault -> Replace -> Continue** cycle. Secrets never persist in agent memory. They're replaced with HMAC-signed vault references.
+KeySpot SDK intercepts agent execution at critical boundaries — session end, memory save, tool return — and runs a **Checkpoint → Scan → Vault → Replace → Continue** cycle. Detected secrets are replaced with HMAC-signed vault references so they are less likely to persist in agent state, vector stores, and logs.
+
+> **Security posture:** See the [Threat Model](docs/security/threat-model.md). KeySpot is **not** a hardware enclave. Pure JS/Python cannot guarantee secret zeroization from process memory. A **production-secure** claim requires the native sealed-memory core, a persistent vault, and the deployment baseline in that document. The **Python SDK is experimental** until the parity gate passes.
 
 ---
 
@@ -61,7 +63,7 @@ const guard = KeySpot.createSecure({
 });
 ```
 
-`createSecure()` rejects `InMemoryVaultAdapter`, enables prompt shielding, taint tracking, and telemetry. For dev environments use the base constructor.
+`createSecure()` requires a vault adapter, rejects `InMemoryVaultAdapter`, and enables prompt shielding, taint tracking, and telemetry. For local dev use the base constructor with `InMemoryVaultAdapter`. See [Threat Model](docs/security/threat-model.md).
 
 One-line auto-detect (works with any framework):
 
@@ -90,20 +92,22 @@ const guarded = withKeySpot(chain, guard);
 
 Also supports **OpenClaw**, **Hermes**, and generic `guard.wrap(fn, state)`.
 
+> **Framework note:** Current wrappers primarily sanitize **model outputs**. Checkpoint tool results and inbound prompts explicitly (or use dual-side wrapping when enabled) so secrets never enter the model context unscanned.
+
 ---
 
 ## Key Features
 
 - **40+ built-in patterns** — Crypto keys, AI provider keys (OpenAI, Anthropic, Gemini), cloud credentials (AWS, GCP, Azure), database connection strings, payment processor keys, PII, and more
 - **Taint tracking** — Catches derived secrets (summaries, embeddings, transformed values) that would otherwise evade detection
-- **PromptShield** — 18 built-in rules detect jailbreak attempts, system prompt extraction, and policy violations before prompts reach the LLM
-- **Pluggable vault adapters** — InMemory (default), AWS Secrets Manager, or custom via `BaseVaultAdapter`
-- **Hash-chained audit logs** — Tamper-proof, Ed25519-signed, optional blockchain anchoring
-- **Vector store adapters** — Pinecone, Chroma, Qdrant, Weaviate, LanceDB, Milvus — auto-sanitize before upsert
-- **CLI** — `keyspot scan ./src` for file scanning, pre-commit hooks, CI integration with JSON output
-- **Python SDK** — Full TypeScript parity via `pip install keyspot`
-- **x402 micropayments** — Pay-per-checkpoint on-chain for hosted deployments
-- **Streaming scan** — 2048-char rolling window catches secrets across chunk boundaries
+- **PromptShield** — Regex heuristics for jailbreaks / prompt extraction (soft signal, not a sole control)
+- **Pluggable vault adapters** — InMemory (dev only), AWS Secrets Manager, or custom via `BaseVaultAdapter`
+- **Hash-chained audit logs** — Tamper-evident chain; optional Ed25519 signatures; optional **block timestamp snapshot** (not an on-chain write today)
+- **Vector store adapters** — Pinecone, Chroma, Qdrant, Weaviate, LanceDB, Milvus — sanitize before upsert
+- **CLI** — `keyspot scan ./src` for file scanning, pre-commit hooks, CI integration (JSON output redacts secret values by default)
+- **Python SDK** — Experimental port (`pip install keyspot`); not full TS parity until the parity gate
+- **x402 micropayments** — Optional pay-per-checkpoint for hosted deployments
+- **Streaming scan** — Rolling window catches secrets across chunk boundaries
 - **Self-hosted or hosted** — Run your own server or use the hosted SaaS with Stripe subscriptions
 
 ---
@@ -125,7 +129,8 @@ Also supports **OpenClaw**, **Hermes**, and generic `guard.wrap(fn, state)`.
 
 ## Documentation
 
-- [Full developer documentation](DOCUMENTATION.md) — API reference, configuration, vault adapters, threat model
+- [Threat model](docs/security/threat-model.md) — Guarantees, non-guarantees, residual risk
+- [Full developer documentation](DOCUMENTATION.md) — API reference, configuration, vault adapters
 - [Migration guide](MIGRATION.md) — Breaking changes from v2.x
 - [Contributing guide](CONTRIBUTING.md) — Development setup, coding standards, test structure
 - [API reference](docs/api/index.html) — Generated TypeDoc (`pnpm docs`)

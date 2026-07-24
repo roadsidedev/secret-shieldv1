@@ -25,13 +25,6 @@ export async function getUsageMetrics(
   groupBy: 'hour' | 'day' = 'day',
   apiKeyId?: string
 ): Promise<UsageSummary> {
-  const periodMap: Record<string, string> = {
-    '24h': '24 hours',
-    '7d': '7 days',
-    '30d': '30 days',
-    '90d': '90 days',
-  };
-
   const intervalSeconds: Record<string, number> = {
     '24h': 24 * 60 * 60,
     '7d': 7 * 24 * 60 * 60,

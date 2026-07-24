@@ -1,0 +1,1 @@
+{"version":3,"file":"weaviate.d.ts","sourceRoot":"","sources":["weaviate.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,sBAAsB,EAAE,MAAM,WAAW,CAAC;AAEnD,qBAAa,eAAgB,SAAQ,sBAAsB;IACzD,IAAI,CAAC,MAAM,EAAE,GAAG,GAAG,GAAG;CAoBvB"}

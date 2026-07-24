@@ -4,10 +4,11 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import crypto from 'node:crypto';
-import { KeySpot, KeySpotError, toStatusCode } from '@roadsidelab/keyspot-core';
+import { KeySpot } from '@roadsidelab/keyspot-core';
+import { KeySpotError, toStatusCode } from '@roadsidelab/keyspot-core/errors';
 import { logger } from '@roadsidelab/keyspot-core/logger';
 import { createX402Middleware, type X402Config } from './payments/index.js';
-import { MetricsRegistry, metricsMiddleware, metricsHandler } from './metrics.js';
+import { metricsMiddleware, metricsHandler } from './metrics.js';
 import { prisma } from './utils/prisma.js';
 import { getRedis } from './utils/redis.js';
 import authRoutes from './routes/auth.js';
@@ -16,6 +17,7 @@ import metricsRoutes from './routes/metrics.js';
 import stripeWebhookRoutes from './routes/stripe-webhook.js';
 import billingRoutes from './routes/billing.js';
 import migrationRoutes from './routes/migration.js';
+import { createMcpRouter } from './routes/mcp.js';
 import { requireSubscription } from './middleware/requireSubscription.js';
 import { usageTracker } from './middleware/usageTracker.js';
 import { requireAuth } from './middleware/requireAuth.js';
@@ -172,12 +174,20 @@ app.use(express.json({ limit: '1mb' }));
     x402Middleware = result.middleware;
   }
 
+  // ── MCP (Model Context Protocol) ──
+  const mcpRouter = createMcpRouter(guard);
+  app.use('/mcp', mcpRouter);
+
   // ── Checkpoint endpoint ──
-  // When x402 is enabled, this endpoint is protected by the paymentMiddleware.
-  const checkpointHandlers: express.RequestHandler[] = [];
-  if (x402Middleware) checkpointHandlers.push(x402Middleware);
-  checkpointHandlers.push(authLimiter);
-  checkpointHandlers.push(requireSubscription('FREE'));
+  // Policy: (x402 payment when enabled) OR (JWT/API key + active subscription).
+  // Never leave requireSubscription without prior auth (req.user would always be empty).
+  const checkpointHandlers: express.RequestHandler[] = [authLimiter];
+  if (x402Middleware) {
+    checkpointHandlers.push(x402Middleware);
+  } else {
+    checkpointHandlers.push(requireAuth);
+    checkpointHandlers.push(requireSubscription('FREE'));
+  }
   checkpointHandlers.push(async (req: Request, res: Response, next: NextFunction) => {
     try {
       const parsed = checkpointSchema.parse(req.body);

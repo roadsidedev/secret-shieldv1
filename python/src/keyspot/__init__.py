@@ -11,3 +11,12 @@ __all__ = [
     "PromptShield", "AuditLogger",
     "KeySpot",
 ]
+
+import warnings
+warnings.warn(
+    "KeySpot Python SDK is experimental. "
+    "Not full TypeScript parity until the golden-vector parity gate passes. "
+    "Do not use in production.",
+    UserWarning,
+    stacklevel=2,
+)

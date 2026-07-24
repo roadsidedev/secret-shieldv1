@@ -1,6 +1,8 @@
 # KeySpot Python SDK
 
-Python implementation of the KeySpot runtime security layer for AI agents.
+**Status: experimental** — not full TypeScript parity. Do not use in production until the [parity gate](../docs/security/threat-model.md) and shared golden-vector suite pass.
+
+Python port of the KeySpot runtime security layer for AI agents.
 
 ## Installation
 
@@ -31,12 +33,12 @@ asyncio.run(main())
 
 | Module | Description | Status |
 |---|---|---|
-| `Scanner` | 40+ secret patterns, deep recursive scan | ✅ |
-| `TaintEngine` | Tag, propagate, untaint with SHA-256 keys | ✅ |
-| `Vault` | InMemoryVaultAdapter, HMAC refs, TTL, ACLs | ✅ |
-| `PromptShield` | 12 rules, async, case-insensitive | ✅ |
-| `AuditLogger` | SHA-256 hash chain, tamper detection | ✅ |
-| `KeySpot` | checkpoint, scan, validate_prompt | ✅ |
+| `Scanner` | Secret patterns, recursive scan | Partial vs TS |
+| `TaintEngine` | Tag, propagate, untaint | Partial |
+| `Vault` | InMemoryVaultAdapter, HMAC refs, TTL, ACLs | Hardening required |
+| `PromptShield` | Regex heuristics | Subset of TS |
+| `AuditLogger` | SHA-256 hash chain | Partial |
+| `KeySpot` | checkpoint, scan, validate_prompt | Experimental |
 
 ## Testing
 

@@ -322,21 +322,38 @@ describe('WorkerPool Resilience', () => {
 // ── createSecure Factory ──────────────────────────────────────
 
 describe('KeySpot.createSecure', () => {
+  /** Minimal non-in-memory vault for createSecure tests */
+  function persistentVault() {
+    const inner = new InMemoryVaultAdapter();
+    return {
+      write: (s: string, o?: any) => inner.write(s, o),
+      read: (id: string, a?: string) => inner.read(id, a),
+      list: () => inner.list(),
+      delete: (id: string) => inner.delete(id),
+      generateRef: (id: string, s: string, t?: number) => inner.generateRef(id, s, t),
+      verifyRef: (r: string) => inner.verifyRef(r),
+      toWorkerConfig: () => ({ type: 'persistent-test' }),
+      isInMemory: () => false,
+    };
+  }
+
   it('creates a KeySpot instance with production defaults', () => {
-    const vault = new InMemoryVaultAdapter();
-    const guard = KeySpot.createSecure({ vault });
+    const guard = KeySpot.createSecure({ vault: persistentVault() as any });
     expect(guard).toBeInstanceOf(KeySpot);
     expect(guard.getVault()).toBeDefined();
   });
 
   it('vaulted secrets use vault references', async () => {
-    const vault = new InMemoryVaultAdapter();
-    const guard = KeySpot.createSecure({ vault });
+    const guard = KeySpot.createSecure({ vault: persistentVault() as any });
     const result = await guard.checkpoint({ key: 'sk-123456789012345678901234567890123456789012345678' });
     expect(result.key).toMatch(/^vault:v1:/);
   });
 
   it('rejects missing vault with ConfigurationError', () => {
     expect(() => (KeySpot as any).createSecure({})).toThrow();
+  });
+
+  it('rejects InMemoryVaultAdapter', () => {
+    expect(() => KeySpot.createSecure({ vault: new InMemoryVaultAdapter() })).toThrow(/InMemory/);
   });
 });

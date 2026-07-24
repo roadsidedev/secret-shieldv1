@@ -1,12 +1,25 @@
 import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireScope } from '../middleware/requireScope.js';
 import { prisma } from '../utils/prisma.js';
 import { createCheckoutSession, createPortalSession, getPriceIdFromTier } from '../services/stripe.js';
 import { Tier } from '@prisma/client';
 
 const router: Router = Router();
 
-router.post('/create-checkout', requireAuth, async (req: Request, res: Response) => {
+/** Resolve allowed app origin — never trust arbitrary Origin headers. */
+function resolveAppOrigin(req: Request): string | null {
+  const allowed = (process.env.CORS_ORIGIN || process.env.APP_URL || 'http://localhost:3000')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const origin = req.headers.origin;
+  if (origin && allowed.includes(origin)) return origin;
+  // Prefer first configured origin over attacker-controlled header
+  return allowed[0] || null;
+}
+
+router.post('/create-checkout', requireAuth, requireScope('write:billing'), async (req: Request, res: Response) => {
   try {
     const { tier } = req.body;
     if (!tier || !['PRO', 'ENTERPRISE'].includes(tier)) {
@@ -37,7 +50,11 @@ router.post('/create-checkout', requireAuth, async (req: Request, res: Response)
       return;
     }
 
-    const origin = req.headers.origin || 'http://localhost:3000';
+    const origin = resolveAppOrigin(req);
+    if (!origin) {
+      res.status(500).json({ error: 'APP_URL / CORS_ORIGIN not configured' });
+      return;
+    }
     const session = await createCheckoutSession(
       customerId,
       priceId,
@@ -52,7 +69,7 @@ router.post('/create-checkout', requireAuth, async (req: Request, res: Response)
   }
 });
 
-router.post('/portal', requireAuth, async (req: Request, res: Response) => {
+router.post('/portal', requireAuth, requireScope('read:billing'), async (req: Request, res: Response) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
@@ -64,7 +81,11 @@ router.post('/portal', requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const origin = req.headers.origin || 'http://localhost:3000';
+    const origin = resolveAppOrigin(req);
+    if (!origin) {
+      res.status(500).json({ error: 'APP_URL / CORS_ORIGIN not configured' });
+      return;
+    }
     const session = await createPortalSession(
       user.subscription.stripeCustomerId,
       `${origin}/dashboard/billing`

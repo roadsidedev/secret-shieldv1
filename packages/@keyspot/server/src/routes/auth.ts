@@ -37,7 +37,7 @@ const resetSchema = z.object({
 });
 
 function createTokens(payload: { sub: string; email: string; role: string }) {
-  const accessTokenPromise = new SignJWT(payload)
+  const accessTokenPromise = new SignJWT({ ...payload, type: 'access' })
     .setProtectedHeader({ alg: 'HS256' })
     .setExpirationTime(ACCESS_TOKEN_EXPIRY)
     .setIssuedAt()

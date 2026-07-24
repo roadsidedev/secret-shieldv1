@@ -1,6 +1,7 @@
 import { Scanner, ScannerOptions, Match } from './scanner.js';
 import { TaintEngine } from './taint.js';
 import { VaultAdapter, InMemoryVaultAdapter, VaultWriteOptions, withCircuitBreaker } from '@roadsidelab/keyspot-vault';
+import type { VaultWorkerConfig } from '@roadsidelab/keyspot-vault';
 import { PromptShield, AuditLogger, PromptShieldRule } from './security.js';
 import { KeySpotTracer, Tracer, OtelTracer } from './telemetry.js';
 import { BaseVectorStoreAdapter } from './adapters.js';
@@ -146,6 +147,27 @@ export class KeySpot {
    * ```
    */
   static createSecure(config: SecureConfig): KeySpot {
+    // In production, require native bindings for sealed memory + constant-time HMAC
+    if (process.env.NODE_ENV === 'production') {
+      try {
+        // Dynamic import: may not be installed on every platform
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const kv = require('@roadsidelab/keyspot-native');
+        if (!kv.isNativeAvailable()) {
+          console.warn(
+            '[KeySpot] Production mode recommended native addon (@keyspot/native) not available. ' +
+            'Install and rebuild for your platform. JS fallback has residual memory exposure. ' +
+            'See docs/security/threat-model.md.',
+          );
+        }
+      } catch {
+        console.warn(
+          '[KeySpot] Production mode recommended native addon (@keyspot/native) not available. ' +
+          'Install and rebuild for your platform. JS fallback has residual memory exposure. ' +
+          'See docs/security/threat-model.md.',
+        );
+      }
+    }
     if (!config.vault) {
       throw new ConfigurationError(
         'KeySpot.createSecure() requires a persistent VaultAdapter. ' +
@@ -153,12 +175,28 @@ export class KeySpot {
         'SECURE_CONFIG_INVALID',
       );
     }
+    const isMemory =
+      config.vault instanceof InMemoryVaultAdapter ||
+      (typeof config.vault.isInMemory === 'function' && config.vault.isInMemory());
+    if (isMemory) {
+      throw new ConfigurationError(
+        'KeySpot.createSecure() rejects InMemoryVaultAdapter. ' +
+        'Use a persistent adapter (e.g. AWSSecretsAdapter) or the base constructor for local dev.',
+        'SECURE_CONFIG_INVALID',
+      );
+    }
+    const onSecretFound = config.onSecretFound
+      ? async (match: Match) => {
+          const { rawValue: _r, ...safe } = match;
+          await config.onSecretFound!(safe as Match);
+        }
+      : undefined;
     return new KeySpot({
       vault: config.vault,
       taintEnabled: true,
       promptShield: { enabled: true },
       enableOpenTelemetry: config.enableTelemetry ?? true,
-      onSecretFound: config.onSecretFound,
+      onSecretFound,
       onCheckpointTrigger: config.onCheckpointTrigger,
     });
   }
@@ -176,8 +214,19 @@ export class KeySpot {
     return this.tracer.traceScan(data, () => this.scanner.scan(data));
   }
 
+  /** Scan and return matches with rawValue stripped (safe for logs/MCP/CLI). */
+  async scanSafe(data: any): Promise<Match[]> {
+    const matches = await this.scan(data);
+    return matches.map(({ rawValue: _r, ...rest }) => rest);
+  }
+
   async stream(tokens: string, context: string = ''): Promise<Match[]> {
     return this.tracer.traceScan(tokens, () => this.scanner.scanStream(tokens, context));
+  }
+
+  async streamSafe(tokens: string, context: string = ''): Promise<Match[]> {
+    const matches = await this.stream(tokens, context);
+    return matches.map(({ rawValue: _r, ...rest }) => rest);
   }
 
   // ── Checkpoint ──
@@ -201,16 +250,30 @@ export class KeySpot {
 
     await this.emitTrigger(CheckpointTrigger.SCAN, { stateType: typeof state });
     this.auditLogger.log({ type: 'checkpoint_start', stateSummary: typeof state });
-    const matches = await this.scan(state);
-    const cleanState = JSON.parse(JSON.stringify(state));
+
+    // Root string: wrap so path-based replace works, then unwrap
+    const isRootString = typeof state === 'string';
+    const scanTarget = isRootString ? { __root: state } : state;
+    const matches = await this.scan(scanTarget);
+    if (isRootString) {
+      for (const m of matches) {
+        if (m.path === '__root' || m.path === '') m.path = '__root';
+      }
+    }
+
+    const cleanState = isRootString
+      ? { __root: state }
+      : JSON.parse(JSON.stringify(state));
 
     for (const match of matches) {
-      // Fire custom checkpoint trigger for vector stores
       if (this.vectorStores.length > 0) {
         this.auditLogger.log({ type: 'checkpoint_trigger', trigger: 'VECTOR_WRITE', matchesFound: matches.length });
       }
 
-      if (this.onSecretFound) await this.onSecretFound(match);
+      if (this.onSecretFound) {
+        const { rawValue: _r, ...safe } = match;
+        await this.onSecretFound(safe as Match);
+      }
 
       if (match.rawValue) {
         await this.handleRawMatch(match, cleanState);
@@ -221,7 +284,7 @@ export class KeySpot {
     }
 
     this.auditLogger.log({ type: 'checkpoint_end', matchesFound: matches.length });
-    return cleanState;
+    return isRootString ? cleanState.__root : cleanState;
   }
 
   private async handleRawMatch(match: Match, cleanState: any): Promise<void> {
@@ -302,7 +365,11 @@ export class KeySpot {
   // ── Utilities ──
 
   private replaceAtPath(obj: any, path: string, value: any) {
-    if (!path) return;
+    if (path === undefined || path === null) return;
+    if (path === '') {
+      // Cannot replace root object in-place; caller handles root strings
+      return;
+    }
     const parts = path.split(/[.\[\]]+/).filter(Boolean);
     // Block prototype pollution
     if (parts.some(p => p === '__proto__' || p === 'constructor' || p === 'prototype')) {

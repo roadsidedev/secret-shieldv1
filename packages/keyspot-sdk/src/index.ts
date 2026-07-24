@@ -56,6 +56,7 @@ export {
    VaultReference,
    BaseVaultAdapter,
    InMemoryVaultAdapter,
+   NativeVaultAdapter,
    withCircuitBreaker as vaultWithCircuitBreaker,
  } from '@roadsidelab/keyspot-vault';
 

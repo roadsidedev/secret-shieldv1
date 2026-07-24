@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { jwtVerify, type JWTPayload } from 'jose';
+import { jwtVerify } from 'jose';
 import { prisma } from '../utils/prisma.js';
 
 const jwtSecretRaw = process.env.JWT_SECRET;
@@ -39,6 +39,17 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     }
 
     const { payload } = await jwtVerify(token, JWT_SECRET);
+
+    // Reject refresh tokens — they must only be used on /auth/refresh
+    if (payload.type === 'refresh') {
+      res.status(401).json({ error: 'Refresh token cannot be used as access token' });
+      return;
+    }
+    if (payload.type !== undefined && payload.type !== 'access') {
+      res.status(401).json({ error: 'Invalid token type' });
+      return;
+    }
+
     const user = await loadUser(payload.sub!);
 
     if (!user) {
@@ -74,6 +85,7 @@ async function handleApiKeyAuth(req: Request, res: Response, authHeader: string,
   }
 
   req.user = user;
+  req.apiKeyScopes = result.scopes ?? [];
   next();
 }
 

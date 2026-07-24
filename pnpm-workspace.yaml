@@ -3,3 +3,5 @@ packages:
   - 'packages/keyspot-sdk'
   - 'packages/keyspot-agent'
   - 'keyspot-sdk/apps/*'
+  - 'packages/@keyspot/mcp'
+  - 'packages/@keyspot/native'

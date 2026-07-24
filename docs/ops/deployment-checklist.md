@@ -21,12 +21,34 @@
 - [ ] TLS termination configured at reverse proxy (nginx, Caddy, Cloudflare)
 - [ ] Rate limiting configured at reverse proxy (optional, app has built-in limits)
 - [ ] Firewall allows only: 443 (HTTPS), optionally 9090 (metrics, internal)
+- [ ] Egress allowlist for vault/KMS, Stripe, and `X402_FACILITATOR_URL` hosts only
+- [ ] Pattern registry remote updates disabled or pinned/signed
+
+### Secrets & vault
+- [ ] Persistent vault adapter (not `InMemoryVaultAdapter`)
+- [ ] Vault HMAC / encryption keys from secrets manager — not committed
+- [ ] Secret rotation procedure documented (API keys, JWT_SECRET, vault key)
+- [ ] Incident response: vault key compromise playbook (revoke, rotate, re-issue refs)
+- [ ] Native sealed-memory package installed and built (`@keyspot/native`) for production-secure deployments
+- [ ] Verify native loaded: `node -e "require('@roadsidelab/keyspot-native').isNativeAvailable() && process.exit(0) || process.exit(1)"`
+
+### Memory / host hardening (residual risk)
+- [ ] Disable or encrypt swap on secret-handling hosts where feasible
+- [ ] Restrict heap dump / diagnostic endpoints in production
+- [ ] No debug tooling attached to production agent processes
 
 ### Monitoring
 - [ ] Prometheus scrape target configured for `/metrics` endpoint
 - [ ] API key created for Prometheus authentication (or network-restricted access)
 - [ ] Grafana dashboard imported (see `monitoring-guide.md`)
 - [ ] Alert rules configured in Prometheus/Alertmanager
+- [ ] Alerts for auth failures, rate-limit hits, vault errors, MCP abuse
+
+### Auth surfaces
+- [ ] `/mcp/*` requires authentication
+- [ ] Refresh tokens cannot be used as access tokens
+- [ ] Stripe webhook secret set and non-empty when Stripe enabled
+- [ ] CORS / billing success URLs restricted to known app origins
 
 ---
 

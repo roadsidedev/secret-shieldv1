@@ -33,7 +33,9 @@
   "dependencies": {
     "@auth/prisma-adapter": "^2.0.0",
     "@prisma/client": "^6.0.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@roadsidelab/keyspot-core": "workspace:*",
+    "@roadsidelab/keyspot-mcp": "workspace:*",
     "@x402/core": "^2.14.0",
     "@x402/evm": "^2.14.0",
     "@x402/express": "^2.14.0",

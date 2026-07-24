@@ -1,4 +1,4 @@
-# KeySpot SDK CI — lint, test, build
+# KeySpot SDK CI — lint, test, build, security audit
 name: CI
 
 on:
@@ -37,3 +37,77 @@ jobs:
       - run: pnpm run test:coverage
 
       - run: npx eslint packages/*/src/**/*.ts
+
+  security-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --audit-level=high || true
+      # Semgrep SAST rule set (secrets, crypto, prototype pollution, SSRF)
+      - uses: semgrep/semgrep-action@v1
+        if: always()
+        with:
+          config: >-
+            p/typescript
+            p/javascript
+            p/nodejs
+            p/owasp-top-ten
+            p/command-injection
+          auditOn: push
+
+  leakage-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - name: Run leakage P0 tests
+        run: npx vitest run tests/leakage-p0.test.ts
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pytest pytest-asyncio
+      - run: pytest python/tests/
+
+  native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Build native crate (cargo test)
+        working-directory: native
+        run: cargo test
+      - name: Build N-API bindings
+        working-directory: native
+        run: npx -p @napi-rs/cli napi build --platform --release dist
+        continue-on-error: true

@@ -25,6 +25,10 @@
     "./cli": {
       "types": "./dist/cli/index.d.ts",
       "import": "./dist/cli/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "import": "./dist/mcp/index.js"
     }
   },
   "bin": {
@@ -43,7 +47,8 @@
     "@roadsidelab/keyspot-core": "workspace:*",
     "@roadsidelab/keyspot-frameworks": "workspace:*",
     "@roadsidelab/keyspot-patterns": "workspace:*",
-    "@roadsidelab/keyspot-vault": "workspace:*"
+    "@roadsidelab/keyspot-vault": "workspace:*",
+    "@roadsidelab/keyspot-mcp": "workspace:*"
   },
   "optionalDependencies": {
     "@pinecone-database/pinecone": "^4.0.0",

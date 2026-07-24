@@ -41,5 +41,11 @@ export function withCircuitBreaker(
 
     verifyRef: (ref: string) =>
       adapter.verifyRef(ref),
+
+    toWorkerConfig: () =>
+      adapter.toWorkerConfig(),
+
+    isInMemory: () =>
+      typeof adapter.isInMemory === 'function' ? adapter.isInMemory() : false,
   };
 }

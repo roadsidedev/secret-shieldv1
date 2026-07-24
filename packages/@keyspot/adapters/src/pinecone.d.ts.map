@@ -1,0 +1,1 @@
+{"version":3,"file":"pinecone.d.ts","sourceRoot":"","sources":["pinecone.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,sBAAsB,EAAE,MAAM,WAAW,CAAC;AACnD,OAAO,KAAK,EAAE,KAAK,EAAE,MAAM,6BAA6B,CAAC;AAEzD,qBAAa,eAAgB,SAAQ,sBAAsB;IACzD,IAAI,CAAC,KAAK,EAAE,KAAK,GAAG,KAAK;CAQ1B"}
