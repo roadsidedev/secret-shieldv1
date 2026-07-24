@@ -45,3 +45,16 @@ next.config.d.ts
 next.config.d.ts.map
 next.config.js
 next.config.js.map
+
+# compiled TS build artifacts (source is .ts/.tsx)
+app/**/*.js
+app/**/*.d.ts
+app/**/*.d.ts.map
+src/**/*.js
+src/**/*.d.ts
+src/**/*.d.ts.map
+*.js.map
+
+# compiled TS build artifacts
+*.d.ts
+*.d.ts.map
