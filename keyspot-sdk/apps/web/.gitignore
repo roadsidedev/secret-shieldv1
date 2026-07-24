@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# compiled next config (source is next.config.ts)
+next.config.d.ts
+next.config.d.ts.map
+next.config.js
+next.config.js.map
