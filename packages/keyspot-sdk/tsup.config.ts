@@ -34,6 +34,7 @@ export default defineConfig({
     '@roadsidelab/keyspot-mcp',
   ],
   external: [
+    'isolated-vm',
     '@pinecone-database/pinecone',
     'chromadb',
     '@qdrant/js-client-rest',
