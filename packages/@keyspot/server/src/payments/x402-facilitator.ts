@@ -31,6 +31,9 @@ export function createX402Middleware(config: X402Config) {
   const middleware = paymentMiddleware(
     config.routes as any,
     server,
+    undefined,
+    undefined,
+    false, // lazy init — avoids unhandled rejection crash on startup
   );
 
   return { middleware, server, facilitatorClient };
