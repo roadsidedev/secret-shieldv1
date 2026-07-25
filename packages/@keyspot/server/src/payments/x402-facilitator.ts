@@ -37,7 +37,7 @@ export function createX402Middleware(config: X402Config) {
 }
 
 export const DEFAULT_FACILITATOR_URLS = {
-  testnet: 'https://x402.org/facilitator',
+  testnet: 'https://facilitator.payai.network',
   mainnet: {
     cdp: 'https://api.cdp.coinarbitrum.com/platform/v2/x402',
     payai: 'https://facilitator.payai.network',

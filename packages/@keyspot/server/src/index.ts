@@ -68,7 +68,7 @@ function resolveFacilitatorUrl(): string {
   if (!isProduction) return DEFAULT_FACILITATOR_URLS.testnet;
 
   // Production: use configured provider or default to CDP
-  const provider = (process.env.X402_FACILITATOR_PROVIDER || 'cdp') as keyof typeof DEFAULT_FACILITATOR_URLS.mainnet;
+  const provider = (process.env.X402_FACILITATOR_PROVIDER || 'payai') as keyof typeof DEFAULT_FACILITATOR_URLS.mainnet;
   return DEFAULT_FACILITATOR_URLS.mainnet[provider] || DEFAULT_FACILITATOR_URLS.mainnet.cdp;
 }
 
